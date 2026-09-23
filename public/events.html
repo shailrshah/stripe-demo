@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Webhook events · Stripe Demo Shop</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/">Shop</a> · <a href="/orders.html">Orders</a> · <a href="/events.html" aria-current="page">Events</a>
+  </nav>
+  <main>
+    <h1>Webhook events</h1>
+    <p>Every verified webhook delivery, newest first, including duplicates and events that changed nothing.</p>
+    <p><button type="button" id="refresh">Refresh</button> <span id="updated"></span></p>
+    <p id="error" class="error" role="alert" hidden></p>
+    <p id="empty" hidden>No webhook events received yet. Is <code>stripe listen</code> running?</p>
+    <div class="table-wrap" style="overflow-x: auto">
+      <table id="events" hidden>
+        <thead>
+          <tr>
+            <th>Received</th>
+            <th>Type</th>
+            <th>Order</th>
+            <th>Outcome</th>
+            <th>Detail</th>
+            <th>Event</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </main>
+  <script type="module" src="/events.js"></script>
+</body>
+</html>

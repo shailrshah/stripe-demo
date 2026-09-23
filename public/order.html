@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Order · Stripe Demo Shop</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/">Shop</a> · <a href="/orders.html">Orders</a> · <a href="/events.html">Events</a>
+  </nav>
+  <main>
+    <h1 id="title">Order</h1>
+    <p id="error" class="error" role="alert" hidden></p>
+    <section id="details" hidden>
+      <dl id="fields"></dl>
+      <h2>Webhook events</h2>
+      <p>Events that affected this order, in the order they were received.</p>
+      <p id="no-events" hidden>No webhook events for this order yet.</p>
+      <div class="table-wrap" style="overflow-x: auto">
+        <table id="events" hidden>
+          <thead>
+            <tr>
+              <th>Received</th>
+              <th>Type</th>
+              <th>Outcome</th>
+              <th>Detail</th>
+              <th>Stripe created</th>
+              <th>Event</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+    <p><a href="/orders.html">Back to orders</a></p>
+  </main>
+  <script type="module" src="/order.js"></script>
+</body>
+</html>
