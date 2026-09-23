@@ -256,6 +256,25 @@ tbody tr:last-child td { border-bottom: none; }
 
 #payment-form { max-width: 560px; }
 
+/* Donate page */
+.donate { max-width: 560px; margin-bottom: 20px; }
+.presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.presets .btn[aria-pressed="true"] { border-color: var(--accent); background: #f0efff; color: var(--accent); }
+.field { display: block; }
+.field > span:first-child { display: block; margin-bottom: 6px; color: var(--muted); }
+.money {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1.1rem;
+}
+.money:focus-within { border-color: var(--accent); }
+.money input { flex: 1; min-width: 0; border: 0; outline: 0; font: inherit; background: transparent; }
+
 @media (max-width: 480px) {
   h1 { font-size: 1.35rem; }
   .details { grid-template-columns: 1fr; gap: 2px; }

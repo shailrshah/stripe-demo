@@ -291,3 +291,36 @@ test('GET /api/events lists the event log newest first with Dashboard links', as
   assert.equal(body[0].type, 'payment_intent.succeeded');
   assert.equal(body[1].orderId, order.id);
 });
+
+test('POST /api/payment-intents creates a donation for the amount the visitor chose', async () => {
+  const callsBefore = gateway.calls.length;
+  const { status, body } = await request<{ orderId: string; clientSecret: string }>(
+    'POST', '/api/payment-intents', { productId: 'donation', amount: '12.34' },
+  );
+  assert.equal(status, 201);
+
+  const [call] = gateway.calls.slice(callsBefore);
+  assert.ok(call.method === 'createPaymentIntent');
+  assert.equal(call.args.product.id, 'donation');
+  assert.equal(call.args.product.amountCents, 1234);
+
+  const detail = await request<{ order: ApiOrder }>('GET', `/api/orders/${body.orderId}`);
+  assert.equal(detail.body.order.productId, 'donation');
+  assert.equal(detail.body.order.productName, 'Donation');
+  assert.equal(detail.body.order.amountCents, 1234);
+  assert.equal(detail.body.order.price, '$12.34');
+});
+
+test('POST /api/payment-intents rejects out-of-range or malformed donations without writing or calling Stripe', async () => {
+  const ordersBefore = orderCount();
+  const callsBefore = gateway.calls.length;
+
+  for (const amount of ['0.99', '1000.01', 'abc', '', undefined, 50]) {
+    const { status, body } = await request<ErrorBody>('POST', '/api/payment-intents', { productId: 'donation', amount });
+    assert.equal(status, 400, String(amount));
+    assert.match(body.error.message, /between \$1\.00 and \$1,000\.00/);
+  }
+
+  assert.equal(orderCount(), ordersBefore);
+  assert.equal(gateway.calls.length, callsBefore);
+});

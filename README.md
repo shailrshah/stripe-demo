@@ -70,6 +70,14 @@ If `STRIPE_WEBHOOK_SECRET` is missing, the server still starts, but it prints a 
 
 Use any future expiry date, any CVC and any ZIP code.
 
+## Donations
+
+The **Donate** page takes any amount from $1.00 to $1,000.00, chosen from the $5, $10 and $25 presets or typed in, and pays it through either flow below.
+
+- **Validation:** the server validates the amount in `resolveItem` (`src/catalog.ts`), whatever the browser sent. This is the one place the browser chooses a price; catalog products ignore any amount they're sent.
+- **Precision:** dollars are converted to cents with string arithmetic, because in floating point `19.99 * 100` isn't exactly 1999.
+- **Storage:** a donation is stored as an ordinary order for the product `donation`, so webhooks, refunds and the event log work unchanged.
+
 ## Two ways to pay
 
 Each product has two buttons:

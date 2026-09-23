@@ -12,7 +12,9 @@ function showStatus(message) {
 }
 
 async function init() {
-  const productId = new URLSearchParams(location.search).get('product');
+  const query = new URLSearchParams(location.search);
+  const productId = query.get('product');
+  const amount = query.get('amount');
   if (!productId) {
     showStatus('No product selected. Pick one from the shop.');
     return;
@@ -22,26 +24,24 @@ async function init() {
     return;
   }
 
-  let publishableKey, products, orderId, clientSecret;
+  let publishableKey, orderId, clientSecret, order;
   try {
-    [{ publishableKey }, products] = await Promise.all([
-      fetchJson('/api/config'),
-      fetchJson('/api/products'),
-    ]);
+    ({ publishableKey } = await fetchJson('/api/config'));
     ({ orderId, clientSecret } = await fetchJson('/api/payment-intents', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ productId }),
+      body: JSON.stringify(amount === null ? { productId } : { productId, amount }),
     }));
+    ({ order } = await fetchJson(`/api/orders/${encodeURIComponent(orderId)}`));
   } catch (err) {
-    showStatus(err.status === 400
-      ? `That product isn't available (${err.message}). Pick one from the shop.`
-      : `Couldn't start the payment: ${err.message}`);
+    if (err.status !== 400) showStatus(`Couldn't start the payment: ${err.message}`);
+    else if (productId === 'donation') showStatus(`${err.message}. Go back and choose another amount.`);
+    else showStatus(`That product isn't available (${err.message}). Pick one from the shop.`);
     return;
   }
 
-  const product = products.find((p) => p.id === productId);
-  if (product) summaryEl.textContent = `${product.name}: ${product.price}`;
+  // Shown from the created order, so it's the amount the server accepted, not the query string.
+  summaryEl.textContent = `${order.productName ?? order.productId}: ${order.price}`;
 
   const stripe = Stripe(publishableKey);
   const elements = stripe.elements({ clientSecret });

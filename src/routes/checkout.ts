@@ -1,5 +1,5 @@
 import express from 'express';
-import { getProduct } from '../catalog.ts';
+import { resolveItem } from '../catalog.ts';
 import type { Config, Gateway, Logger, OrdersRepo } from '../types.ts';
 
 export function createCheckoutRouter({ config, orders, gateway, logger, publicDir }: {
@@ -8,11 +8,11 @@ export function createCheckoutRouter({ config, orders, gateway, logger, publicDi
   const router = express.Router();
 
   router.post('/checkout', async (req, res) => {
-    const productId: unknown = req.body?.productId;
-    const product = typeof productId === 'string' ? getProduct(productId) : undefined;
-    if (!product) {
-      return res.status(400).json({ error: { message: 'Unknown product' } });
+    const resolved = resolveItem({ productId: req.body?.productId, amount: req.body?.amount });
+    if ('error' in resolved) {
+      return res.status(400).json({ error: { message: resolved.error } });
     }
+    const product = resolved.item;
 
     const order = orders.create({ productId: product.id, amountCents: product.amountCents, method: 'checkout' });
     let session;

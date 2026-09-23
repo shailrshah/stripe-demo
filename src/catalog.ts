@@ -28,5 +28,46 @@ export function getProduct(id: unknown): Readonly<Product> | undefined {
 }
 
 export function formatPrice(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
+  return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export const DONATION_ID = 'donation';
+export const DONATION_MIN_CENTS = 100;
+export const DONATION_MAX_CENTS = 100_000;
+const DONATION_IMAGE = unsplash('photo-1768179123206-6527be13f07e');
+
+// String arithmetic, not parseFloat: 19.99 * 100 is 1998.9999999999998 in floating point.
+export function parseDollars(input: unknown): number | null {
+  if (typeof input !== 'string') return null;
+  const match = /^(\d{1,7})(?:\.(\d{1,2}))?$/.exec(input.trim());
+  if (!match) return null;
+  return Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0'));
+}
+
+// The one place a request becomes something payable. Only donations take an amount from the browser (R10).
+export function resolveItem(body: { productId?: unknown; amount?: unknown }):
+  { item: Readonly<Product> } | { error: string } {
+  if (body.productId !== DONATION_ID) {
+    const product = getProduct(body.productId);
+    return product ? { item: product } : { error: 'Unknown product' };
+  }
+  const amountCents = parseDollars(body.amount);
+  if (amountCents === null || amountCents < DONATION_MIN_CENTS || amountCents > DONATION_MAX_CENTS) {
+    return {
+      error: `Donation amount must be between ${formatPrice(DONATION_MIN_CENTS)} and ${formatPrice(DONATION_MAX_CENTS)}`,
+    };
+  }
+  return {
+    item: {
+      id: DONATION_ID,
+      name: 'Donation',
+      description: 'Thank you for supporting the Stripe Demo Shop.',
+      amountCents,
+      imageUrl: DONATION_IMAGE,
+    },
+  };
+}
+
+export function itemName(productId: string): string | null {
+  return productId === DONATION_ID ? 'Donation' : getProduct(productId)?.name ?? null;
 }

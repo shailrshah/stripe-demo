@@ -166,3 +166,26 @@ test('GET /cancel still serves the page when expiring the session fails', async 
   assert.equal(await res.text(), CANCEL_STUB);
   assert.equal(callsTo('expireCheckoutSession').length, 1);
 });
+
+test('POST /checkout creates a donation Checkout Session for the chosen amount', async (t) => {
+  const { orders, postCheckout, onlyOrderId, callsTo } = await setup(t);
+  const res = await postCheckout({ productId: 'donation', amount: '25' });
+  assert.equal(res.status, 303);
+
+  const order = orders.get(onlyOrderId());
+  assert.equal(order?.productId, 'donation');
+  assert.equal(order?.amountCents, 2500);
+  const [call] = callsTo('createCheckoutSession');
+  assert.equal(call.args.product.name, 'Donation');
+  assert.equal(call.args.product.amountCents, 2500);
+});
+
+test('POST /checkout rejects an invalid donation amount with no order and no gateway call', async (t) => {
+  const { gateway, postCheckout, orderCount } = await setup(t);
+  for (const amount of ['0.50', '5000', 'lots']) {
+    const res = await postCheckout({ productId: 'donation', amount });
+    assert.equal(res.status, 400, amount);
+  }
+  assert.equal(orderCount(), 0);
+  assert.equal(gateway.calls.length, 0);
+});

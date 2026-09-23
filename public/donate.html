@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Donate · Stripe Demo</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/donate.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">Stripe Demo</a>
+    <nav class="nav">
+      <a href="/">Shop</a>
+      <a href="/donate.html" aria-current="page">Donate</a>
+      <a href="/orders.html">Orders</a>
+      <a href="/events.html">Events</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Donate</h1>
+    <p class="lead">Give any amount from $1.00 to $1,000.00. Test mode only: pay with a Stripe test card such as 4242 4242 4242 4242.</p>
+
+    <form id="donate-form" class="panel donate" method="post" action="/checkout">
+      <input type="hidden" name="productId" value="donation">
+
+      <div class="presets" role="group" aria-label="Suggested amounts">
+        <button type="button" class="btn" data-amount="5">$5</button>
+        <button type="button" class="btn" data-amount="10">$10</button>
+        <button type="button" class="btn" data-amount="25">$25</button>
+      </div>
+
+      <label class="field" for="amount">
+        <span>Amount (USD)</span>
+        <span class="money">
+          <span aria-hidden="true">$</span>
+          <input id="amount" name="amount" type="number" inputmode="decimal"
+                 min="1" max="1000" step="0.01" required placeholder="10.00">
+        </span>
+      </label>
+
+      <div class="actions">
+        <button type="submit" class="btn btn-primary">Donate with Checkout</button>
+        <button type="button" id="embedded" class="btn">Donate with embedded form</button>
+      </div>
+    </form>
+
+    <p class="note">The amount is checked again on the server, so editing the page can't get around the limits. A donation is recorded as an order like any purchase: webhooks mark it paid, and it can be refunded from the Orders page.</p>
+  </main>
+</body>
+</html>

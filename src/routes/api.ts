@@ -1,6 +1,6 @@
 import express from 'express';
 import type { Response } from 'express';
-import { PRODUCTS, getProduct, formatPrice } from '../catalog.ts';
+import { PRODUCTS, formatPrice, itemName, resolveItem } from '../catalog.ts';
 import type { Config, EventLog, EventLogRow, Gateway, Logger, Order, OrdersRepo } from '../types.ts';
 
 export interface ApiOrder extends Order { productName: string | null; price: string; dashboardUrl: string | null }
@@ -21,7 +21,7 @@ function orderDashboardUrl(order: Order): string | null {
 function enrichOrder(order: Order): ApiOrder {
   return {
     ...order,
-    productName: getProduct(order.productId)?.name ?? null,
+    productName: itemName(order.productId),
     price: formatPrice(order.amountCents),
     dashboardUrl: orderDashboardUrl(order),
   };
@@ -45,10 +45,10 @@ export function createApiRouter({ config, orders, eventLog, gateway, logger }: {
   });
 
   router.post('/payment-intents', async (req, res) => {
-    // Only productId is read: any amount the browser sends is ignored (R1.3).
-    const productId: unknown = req.body?.productId;
-    const product = typeof productId === 'string' ? getProduct(productId) : undefined;
-    if (!product) return sendError(res, 400, 'Unknown product');
+    // Catalog products ignore any amount the browser sends (R1.3); only donations read it (R10).
+    const resolved = resolveItem({ productId: req.body?.productId, amount: req.body?.amount });
+    if ('error' in resolved) return sendError(res, 400, resolved.error);
+    const product = resolved.item;
 
     const order = orders.create({ productId: product.id, amountCents: product.amountCents, method: 'embedded' });
     let intent;

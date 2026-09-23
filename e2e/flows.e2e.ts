@@ -34,8 +34,8 @@ describe('end-to-end against Stripe test mode', { concurrency: false }, () => {
       { what: `order ${orderId} to become ${status}` },
     );
 
-  async function createEmbeddedOrder() {
-    const res = await e2e.api('POST', '/api/payment-intents', { productId: 'duck' });
+  async function createEmbeddedOrder(body: Record<string, string> = { productId: 'duck' }) {
+    const res = await e2e.api('POST', '/api/payment-intents', body);
     assert.equal(res.status, 201);
     const { orderId } = res.body as { orderId: string };
     const paymentIntentId = (await getOrder(orderId)).order.stripePaymentIntentId;
@@ -79,6 +79,19 @@ describe('end-to-end against Stripe test mode', { concurrency: false }, () => {
     const details = detail.events.filter((ev) => ev.outcome === 'applied').map((ev) => ev.detail);
     assert.ok(details.includes('pending → failed'), details.join(', '));
     assert.ok(details.includes('failed → paid'), details.join(', '));
+  });
+
+  test('a custom-amount donation is paid for exactly the chosen amount', { timeout: TIMEOUT }, async () => {
+    const { orderId, paymentIntentId } = await createEmbeddedOrder({ productId: 'donation', amount: '12.34' });
+
+    const intent = await e2e.stripe.paymentIntents.retrieve(paymentIntentId);
+    assert.equal(intent.amount, 1234);
+    assert.equal(intent.metadata.order_id, orderId);
+
+    await confirm(paymentIntentId, 'pm_card_visa');
+    const detail = await waitForStatus(orderId, 'paid');
+    assert.equal(detail.order.productId, 'donation');
+    assert.equal(detail.order.amountCents, 1234);
   });
 
   test('refunding a paid order is confirmed by charge.refunded', { timeout: TIMEOUT }, async () => {
