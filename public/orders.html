@@ -7,9 +7,14 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <nav class="site-nav">
-    <a href="/">Shop</a> · <a href="/orders.html" aria-current="page">Orders</a> · <a href="/events.html">Events</a>
-  </nav>
+  <header class="site-header">
+    <a class="brand" href="/">Stripe Demo</a>
+    <nav class="nav">
+      <a href="/">Shop</a>
+      <a href="/orders.html" aria-current="page">Orders</a>
+      <a href="/events.html">Events</a>
+    </nav>
+  </header>
   <main>
     <h1>Orders</h1>
     <p class="note">A refund only asks Stripe to refund the payment. The order becomes <code>refunded</code> when the <code>charge.refunded</code> webhook arrives, so <code>stripe listen</code> must be running.</p>
