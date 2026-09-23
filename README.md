@@ -153,6 +153,36 @@ npm test
 
 The tests use Node's built-in test runner. They run offline and need no Stripe keys or `.env`: Stripe API calls go through a fake gateway, and webhook tests sign payloads with a test secret using Stripe's real signing scheme.
 
+### End-to-end tests (opt-in)
+
+```sh
+npm run test:e2e
+```
+
+This runs the real app against **real Stripe test mode**, with events delivered by a real `stripe listen`. It takes about 10 seconds.
+
+**What it needs:**
+- your test keys in `.env`
+- the Stripe CLI, logged into the same account as those keys (`stripe login`)
+- network access
+
+**What it sets up for itself:**
+- It gets the webhook secret from `stripe listen --print-secret`, so it ignores `STRIPE_WEBHOOK_SECRET`.
+- It starts its own `stripe listen` and its own server on a random port.
+- It uses a temporary database, so your `data/` is never touched.
+
+**What it covers:** there's no browser. Payments are driven through Stripe's API with test payment methods such as `pm_card_visa`. The suite checks:
+- an embedded payment succeeds
+- a decline, then a successful retry (`failed → paid`)
+- a refund
+- cancelling Checkout, which ends with the order `canceled`
+- a real `stripe events resend`, logged as `ignored_duplicate`
+- `stripe trigger`, logged as `ignored_unknown_order`
+
+Completing hosted Checkout and the 3D Secure challenge need a browser, so those stay manual checks.
+
+**If a flow times out,** the failure message includes the app's recent webhook log. If you have another `stripe listen` running, it receives these test events too, and your dev server logs them as `ignored_unknown_order`.
+
 ## Project layout
 
 ```
