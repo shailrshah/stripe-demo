@@ -1,12 +1,16 @@
 import express from 'express';
+import type Stripe from 'stripe';
 import { WebhookNotConfiguredError, WebhookSignatureError } from '../webhook-verifier.ts';
+import type { Logger, Outcome, WebhookProcessor, WebhookVerifier } from '../types.ts';
 
-export function createWebhookRouter({ verifier, processor, logger }) {
+export function createWebhookRouter({ verifier, processor, logger }: {
+  verifier: WebhookVerifier; processor: WebhookProcessor; logger: Logger;
+}): express.Router {
   const router = express.Router();
 
   // The signature covers the exact bytes Stripe sent, so this route must parse its own raw body.
   router.post('/webhook', express.raw({ type: 'application/json' }), (req, res) => {
-    let event;
+    let event: Stripe.Event;
     try {
       event = verifier.verify(req.body, req.get('stripe-signature'));
     } catch (err) {
@@ -20,7 +24,7 @@ export function createWebhookRouter({ verifier, processor, logger }) {
       throw err;
     }
 
-    let outcome;
+    let outcome: Outcome;
     try {
       outcome = processor.process(event);
     } catch (err) {

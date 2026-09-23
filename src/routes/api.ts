@@ -1,19 +1,24 @@
 import express from 'express';
+import type { Response } from 'express';
 import { PRODUCTS, getProduct, formatPrice } from '../catalog.ts';
+import type { Config, EventLog, EventLogRow, Gateway, Logger, Order, OrdersRepo } from '../types.ts';
+
+export interface ApiOrder extends Order { productName: string | null; price: string; dashboardUrl: string | null }
+export interface ApiEvent extends EventLogRow { dashboardUrl: string }
 
 const DASHBOARD = 'https://dashboard.stripe.com/test';
 
-function sendError(res, status, message) {
+function sendError(res: Response, status: number, message: string): void {
   res.status(status).json({ error: { message } });
 }
 
-function orderDashboardUrl(order) {
+function orderDashboardUrl(order: Order): string | null {
   if (order.stripePaymentIntentId) return `${DASHBOARD}/payments/${order.stripePaymentIntentId}`;
   if (order.stripeCheckoutSessionId) return `${DASHBOARD}/checkout/sessions/${order.stripeCheckoutSessionId}`;
   return null;
 }
 
-function enrichOrder(order) {
+function enrichOrder(order: Order): ApiOrder {
   return {
     ...order,
     productName: getProduct(order.productId)?.name ?? null,
@@ -22,11 +27,13 @@ function enrichOrder(order) {
   };
 }
 
-function enrichEvent(entry) {
+function enrichEvent(entry: EventLogRow): ApiEvent {
   return { ...entry, dashboardUrl: `${DASHBOARD}/events/${entry.stripeEventId}` };
 }
 
-export function createApiRouter({ config, orders, eventLog, gateway, logger }) {
+export function createApiRouter({ config, orders, eventLog, gateway, logger }: {
+  config: Config; orders: OrdersRepo; eventLog: EventLog; gateway: Gateway; logger: Logger;
+}): express.Router {
   const router = express.Router();
 
   router.get('/config', (req, res) => {
@@ -39,7 +46,8 @@ export function createApiRouter({ config, orders, eventLog, gateway, logger }) {
 
   router.post('/payment-intents', async (req, res) => {
     // Only productId is read: any amount the browser sends is ignored (R1.3).
-    const product = getProduct(req.body?.productId);
+    const productId: unknown = req.body?.productId;
+    const product = typeof productId === 'string' ? getProduct(productId) : undefined;
     if (!product) return sendError(res, 400, 'Unknown product');
 
     const order = orders.create({ productId: product.id, amountCents: product.amountCents, method: 'embedded' });
@@ -47,7 +55,7 @@ export function createApiRouter({ config, orders, eventLog, gateway, logger }) {
     try {
       intent = await gateway.createPaymentIntent({ orderId: order.id, product });
     } catch (err) {
-      logger.error(`Creating PaymentIntent for order ${order.id} failed: ${err.message}`);
+      logger.error(`Creating PaymentIntent for order ${order.id} failed: ${err instanceof Error ? err.message : String(err)}`);
       return sendError(res, 502, 'Could not create the payment with Stripe');
     }
     orders.attachPaymentIntent(order.id, intent.id);
@@ -76,7 +84,7 @@ export function createApiRouter({ config, orders, eventLog, gateway, logger }) {
     try {
       refund = await gateway.createRefund({ paymentIntentId: order.stripePaymentIntentId, orderId: order.id });
     } catch (err) {
-      logger.error(`Refund for order ${order.id} failed: ${err.message}`);
+      logger.error(`Refund for order ${order.id} failed: ${err instanceof Error ? err.message : String(err)}`);
       return sendError(res, 502, 'Could not create the refund with Stripe');
     }
     // Status stays 'paid' until the charge.refunded webhook arrives (R6.2).

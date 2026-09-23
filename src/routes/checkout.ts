@@ -1,11 +1,15 @@
 import express from 'express';
 import { getProduct } from '../catalog.ts';
+import type { Config, Gateway, Logger, OrdersRepo } from '../types.ts';
 
-export function createCheckoutRouter({ config, orders, gateway, logger, publicDir }) {
+export function createCheckoutRouter({ config, orders, gateway, logger, publicDir }: {
+  config: Config; orders: OrdersRepo; gateway: Gateway; logger: Logger; publicDir: string;
+}): express.Router {
   const router = express.Router();
 
   router.post('/checkout', async (req, res) => {
-    const product = getProduct(req.body?.productId);
+    const productId: unknown = req.body?.productId;
+    const product = typeof productId === 'string' ? getProduct(productId) : undefined;
     if (!product) {
       return res.status(400).json({ error: { message: 'Unknown product' } });
     }
@@ -20,7 +24,7 @@ export function createCheckoutRouter({ config, orders, gateway, logger, publicDi
         cancelUrl: `${config.baseUrl}/cancel?order_id=${order.id}`,
       });
     } catch (err) {
-      logger.error(`Checkout Session creation failed for order ${order.id}: ${err.message}`);
+      logger.error(`Checkout Session creation failed for order ${order.id}: ${err instanceof Error ? err.message : String(err)}`);
       return res.status(502).json({ error: { message: 'Could not create Checkout Session' } });
     }
 
@@ -38,7 +42,7 @@ export function createCheckoutRouter({ config, orders, gateway, logger, publicDi
         await gateway.expireCheckoutSession(order.stripeCheckoutSessionId);
       } catch (err) {
         // The visitor must still see the cancel page; the session will expire on its own.
-        logger.warn(`Could not expire Checkout Session for order ${order.id}: ${err.message}`);
+        logger.warn(`Could not expire Checkout Session for order ${order.id}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
     res.sendFile('cancel.html', { root: publicDir });
