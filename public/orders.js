@@ -42,9 +42,16 @@ function renderRow(order) {
   return tr;
 }
 
+function idCell(id) {
+  const td = cell(id);
+  td.className = 'id-cell';
+  if (id) td.title = id;
+  return td;
+}
+
 function fillRow(tr, order) {
   const actions = document.createElement('td');
-  actions.className = 'actions';
+  actions.className = 'row-actions';
   if (order.dashboardUrl) actions.append(link(order.dashboardUrl, 'Dashboard', true));
   if (order.status === 'paid') actions.append(' ', refundButton(order, tr));
 
@@ -54,7 +61,7 @@ function fillRow(tr, order) {
     cell(order.price),
     cell(METHOD_LABELS[order.method] ?? order.method),
     cell(statusBadge(order.status)),
-    cell(order.stripePaymentIntentId ?? order.stripeCheckoutSessionId),
+    idCell(order.stripePaymentIntentId ?? order.stripeCheckoutSessionId),
     cell(formatTime(order.createdAt)),
     actions,
   );
@@ -69,7 +76,7 @@ function refundButton(order, tr) {
 }
 
 function showRowMessage(tr, text, isError) {
-  const actions = tr.querySelector('.actions');
+  const actions = tr.querySelector('.row-actions');
   let msg = actions.querySelector('.row-message');
   if (!msg) {
     msg = document.createElement('div');

@@ -27,6 +27,9 @@ main {
   padding: 24px 16px 48px;
 }
 
+/* Table pages need more room than the reading-width pages. */
+main.wide { max-width: 1280px; }
+
 h1 { font-size: 1.6rem; margin: 0 0 8px; }
 h2 { font-size: 1.15rem; margin: 0 0 4px; }
 
@@ -167,6 +170,20 @@ th, td {
 }
 
 th { color: var(--muted); font-weight: 600; background: var(--bg); }
+td { vertical-align: middle; }
+
+/* Checkout Session IDs run ~66 chars; show the start, full value on hover. */
+.id-cell {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+}
+
+.row-actions > * + * { margin-left: 8px; }
+.row-actions > .row-message { margin: 6px 0 0; white-space: normal; }
+.row-actions button { padding: 4px 10px; font: inherit; font-size: 0.85rem; cursor: pointer; }
 tbody tr:last-child td { border-bottom: none; }
 
 /* Badges: .badge .badge-<status|outcome>, one color per value (design §5) */
