@@ -4,8 +4,9 @@ import { openDb } from './db.ts';
 import { createStripeGateway } from './stripe-gateway.ts';
 import { createWebhookVerifier } from './webhook-verifier.ts';
 import { createApp } from './app.ts';
+import type { Config } from './types.ts';
 
-let config;
+let config: Config;
 try {
   config = loadConfig();
 } catch (err) {

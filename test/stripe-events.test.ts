@@ -11,8 +11,24 @@ import {
   sign,
 } from './helpers/stripe-events.ts';
 import { createFakeGateway } from './helpers/fake-gateway.ts';
+import type { Product } from '../src/types.ts';
 
 const SECRET = 'whsec_test_secret';
+
+function sessionOf(event: Stripe.Event): Stripe.Checkout.Session {
+  assert.ok(event.type === 'checkout.session.completed' || event.type === 'checkout.session.expired');
+  return event.data.object;
+}
+
+function paymentIntentOf(event: Stripe.Event): Stripe.PaymentIntent {
+  assert.ok(event.type === 'payment_intent.succeeded' || event.type === 'payment_intent.payment_failed');
+  return event.data.object;
+}
+
+function chargeOf(event: Stripe.Event): Stripe.Charge {
+  assert.ok(event.type === 'charge.refunded');
+  return event.data.object;
+}
 
 const builders = {
   'checkout.session.completed': () => checkoutSessionCompleted({ orderId: 'ord_1' }),
@@ -50,44 +66,45 @@ test('sign honours an old timestamp, which fails the default tolerance', () => {
 
 test('checkout session objects carry realistic fields', () => {
   const e = checkoutSessionCompleted({ orderId: 'ord_1', sessionId: 'cs_x', paymentIntentId: 'pi_x' });
-  const o = e.data.object;
+  const o = sessionOf(e);
   assert.equal(o.object, 'checkout.session');
   assert.equal(o.id, 'cs_x');
   assert.equal(o.payment_status, 'paid');
   assert.equal(o.payment_intent, 'pi_x');
   assert.deepEqual(o.metadata, { order_id: 'ord_1' });
 
-  const unpaid = checkoutSessionCompleted({ paymentStatus: 'unpaid' }).data.object;
+  const unpaid = sessionOf(checkoutSessionCompleted({ paymentStatus: 'unpaid' }));
   assert.equal(unpaid.payment_status, 'unpaid');
   assert.match(unpaid.id, /^cs_test_\d+$/);
+  assert.ok(typeof unpaid.payment_intent === 'string');
   assert.match(unpaid.payment_intent, /^pi_test_\d+$/);
 
-  const expired = checkoutSessionExpired({ sessionId: 'cs_y' }).data.object;
+  const expired = sessionOf(checkoutSessionExpired({ sessionId: 'cs_y' }));
   assert.equal(expired.object, 'checkout.session');
   assert.equal(expired.id, 'cs_y');
   assert.equal(expired.status, 'expired');
 });
 
 test('payment intent and charge objects carry realistic fields', () => {
-  const pi = paymentIntentSucceeded({ paymentIntentId: 'pi_x' }).data.object;
+  const pi = paymentIntentOf(paymentIntentSucceeded({ paymentIntentId: 'pi_x' }));
   assert.equal(pi.object, 'payment_intent');
   assert.equal(pi.id, 'pi_x');
   assert.equal(pi.status, 'succeeded');
   assert.equal(typeof pi.amount, 'number');
 
-  const failed = paymentIntentFailed().data.object;
+  const failed = paymentIntentOf(paymentIntentFailed());
   assert.equal(failed.object, 'payment_intent');
   assert.match(failed.id, /^pi_test_\d+$/);
   assert.ok(failed.last_payment_error);
 
-  const ch = chargeRefunded({ paymentIntentId: 'pi_x', chargeId: 'ch_x' }).data.object;
+  const ch = chargeOf(chargeRefunded({ paymentIntentId: 'pi_x', chargeId: 'ch_x' }));
   assert.equal(ch.object, 'charge');
   assert.equal(ch.id, 'ch_x');
   assert.equal(ch.payment_intent, 'pi_x');
   assert.equal(ch.refunded, true);
   assert.equal(ch.amount_refunded, ch.amount);
 
-  const partial = chargeRefunded({ refunded: false }).data.object;
+  const partial = chargeOf(chargeRefunded({ refunded: false }));
   assert.equal(partial.refunded, false);
   assert.ok(partial.amount_refunded < partial.amount);
   assert.match(partial.id, /^ch_test_\d+$/);
@@ -95,14 +112,22 @@ test('payment intent and charge objects carry realistic fields', () => {
 
 test('an undefined orderId leaves metadata empty, like stripe trigger', () => {
   for (const build of [checkoutSessionCompleted, checkoutSessionExpired, paymentIntentSucceeded, paymentIntentFailed, chargeRefunded]) {
-    assert.deepEqual(build().data.object.metadata, {});
+    const object = build().data.object;
+    assert.ok('metadata' in object);
+    assert.deepEqual(object.metadata, {});
   }
 });
 
 test('generated IDs are unique', () => {
   const events = [...Array(5)].flatMap(() => Object.values(builders).map((b) => b()));
   const eventIds = new Set(events.map((e) => e.id));
-  const objectIds = new Set(events.map((e) => e.data.object.id));
+  const objectIds = new Set(
+    events.map((e) => {
+      const object = e.data.object;
+      assert.ok('id' in object);
+      return object.id;
+    }),
+  );
   assert.equal(eventIds.size, events.length);
   assert.equal(objectIds.size, events.length);
 });
@@ -129,7 +154,7 @@ test('unhandled accepts a custom object', () => {
 
 test('fake gateway returns sequential IDs and records calls', async () => {
   const gw = createFakeGateway();
-  const product = { id: 'duck', priceCents: 500 };
+  const product: Product = { id: 'duck', name: 'Duck', description: 'A duck', amountCents: 500 };
   const s1 = await gw.createCheckoutSession({ orderId: 'ord_1', product, successUrl: 's', cancelUrl: 'c' });
   const s2 = await gw.createCheckoutSession({ orderId: 'ord_2', product, successUrl: 's', cancelUrl: 'c' });
   assert.deepEqual(s1, { id: 'cs_test_fake_1', url: 'https://checkout.stripe.test/c/pay/cs_test_fake_1' });
@@ -153,10 +178,11 @@ test('fake gateway returns sequential IDs and records calls', async () => {
 
 test('failNext rejects exactly once, only for that method', async () => {
   const gw = createFakeGateway();
+  const product: Product = { id: 'duck', name: 'Duck', description: 'A duck', amountCents: 500 };
   gw.failNext('createPaymentIntent');
-  assert.deepEqual(await gw.createRefund({ paymentIntentId: 'pi_1' }), { id: 're_test_fake_1' });
-  await assert.rejects(gw.createPaymentIntent({ orderId: 'ord_1' }), { message: 'fake gateway failure' });
-  assert.equal((await gw.createPaymentIntent({ orderId: 'ord_1' })).id, 'pi_test_fake_1');
+  assert.deepEqual(await gw.createRefund({ paymentIntentId: 'pi_1', orderId: 'ord_1' }), { id: 're_test_fake_1' });
+  await assert.rejects(gw.createPaymentIntent({ orderId: 'ord_1', product }), { message: 'fake gateway failure' });
+  assert.equal((await gw.createPaymentIntent({ orderId: 'ord_1', product })).id, 'pi_test_fake_1');
 
   gw.failNext('expireCheckoutSession');
   await assert.rejects(gw.expireCheckoutSession('cs_1'), /fake gateway failure/);
@@ -166,7 +192,7 @@ test('failNext rejects exactly once, only for that method', async () => {
 test('fake gateways are independent', async () => {
   const a = createFakeGateway();
   const b = createFakeGateway();
-  await a.createRefund({});
-  assert.equal((await b.createRefund({})).id, 're_test_fake_1');
+  await a.createRefund({ paymentIntentId: 'pi_1', orderId: 'ord_1' });
+  assert.equal((await b.createRefund({ paymentIntentId: 'pi_1', orderId: 'ord_1' })).id, 're_test_fake_1');
   assert.equal(b.calls.length, 1);
 });

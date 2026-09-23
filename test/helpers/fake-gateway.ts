@@ -1,13 +1,20 @@
-export function createFakeGateway() {
-  const calls = [];
-  const failing = new Set();
-  const seq = {};
+import type { Gateway } from '../../src/types.ts';
 
-  function record(method, args) {
+export type GatewayMethod = keyof Gateway;
+export interface FakeGatewayCall { method: GatewayMethod; args: unknown }
+export type FakeGateway = Gateway & { calls: FakeGatewayCall[]; failNext(method: GatewayMethod): void };
+
+export function createFakeGateway(): FakeGateway {
+  const calls: FakeGatewayCall[] = [];
+  const failing = new Set<GatewayMethod>();
+  const seq: Partial<Record<GatewayMethod, number>> = {};
+
+  function record(method: GatewayMethod, args: unknown): number {
     calls.push({ method, args });
     if (failing.delete(method)) throw new Error('fake gateway failure');
-    seq[method] = (seq[method] ?? 0) + 1;
-    return seq[method];
+    const n = (seq[method] ?? 0) + 1;
+    seq[method] = n;
+    return n;
   }
 
   return {

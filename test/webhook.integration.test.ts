@@ -1,6 +1,8 @@
 import { describe, test, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import type Stripe from 'stripe';
 import { startTestServer } from './helpers/test-server.ts';
+import type { TestServer, WebhookResponse } from './helpers/test-server.ts';
 import {
   checkoutSessionCompleted,
   checkoutSessionExpired,
@@ -10,19 +12,22 @@ import {
   unhandled,
   sign,
 } from './helpers/stripe-events.ts';
+import type { EventLogRow, Order, Outcome } from '../src/types.ts';
 
-async function createEmbeddedOrder(srv) {
+interface OrderResponse { order: Order; events: EventLogRow[] }
+
+async function createEmbeddedOrder(srv: TestServer): Promise<Order> {
   const res = await fetch(`${srv.url}/api/payment-intents`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ productId: 'duck' }),
   });
   assert.equal(res.status, 201);
-  const { orderId } = await res.json();
+  const { orderId } = (await res.json()) as { orderId: string };
   return getOrder(srv, orderId);
 }
 
-async function createCheckoutOrder(srv) {
+async function createCheckoutOrder(srv: TestServer): Promise<Order> {
   const res = await fetch(`${srv.url}/checkout`, {
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded' },
@@ -30,46 +35,52 @@ async function createCheckoutOrder(srv) {
     redirect: 'manual',
   });
   assert.equal(res.status, 303);
-  const sessionId = new URL(res.headers.get('location')).pathname.split('/').pop();
-  const orders = await (await fetch(`${srv.url}/api/orders`)).json();
+  const location = res.headers.get('location');
+  assert.ok(location);
+  const sessionId = new URL(location).pathname.split('/').pop();
+  const orders = (await (await fetch(`${srv.url}/api/orders`)).json()) as Order[];
   const order = orders.find((o) => o.stripeCheckoutSessionId === sessionId);
   assert.ok(order, 'checkout order should be listed');
   return order;
 }
 
-async function getOrder(srv, orderId) {
+async function getOrder(srv: TestServer, orderId: string): Promise<Order> {
   const res = await fetch(`${srv.url}/api/orders/${orderId}`);
   assert.equal(res.status, 200);
-  return (await res.json()).order;
+  return ((await res.json()) as OrderResponse).order;
 }
 
-function orderRow(srv, orderId) {
-  return srv.db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+function orderRow(srv: TestServer, orderId: string) {
+  const row = srv.db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+  assert.ok(row);
+  return row;
 }
 
-function logRows(srv, stripeEventId) {
+function logRows(srv: TestServer, stripeEventId: string) {
   return srv.db
     .prepare('SELECT * FROM webhook_events WHERE stripe_event_id = ? ORDER BY id')
     .all(stripeEventId);
 }
 
-function isProcessed(srv, stripeEventId) {
+function isProcessed(srv: TestServer, stripeEventId: string) {
   return srv.db.prepare('SELECT 1 FROM processed_events WHERE stripe_event_id = ?').get(stripeEventId) !== undefined;
 }
 
-function count(srv, table) {
-  return srv.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get().n;
+function count(srv: TestServer, table: string) {
+  const row = srv.db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get();
+  assert.ok(row);
+  return row.n;
 }
 
-function assertApplied(res) {
+function assertApplied(res: WebhookResponse) {
   assert.equal(res.status, 200);
   assert.deepEqual(res.body, { received: true, outcome: 'applied' });
 }
 
 describe('signature verification', () => {
-  let srv;
-  let order;
-  let event;
+  let srv: TestServer;
+  let order: Order;
+  let event: Stripe.Event;
 
   before(async () => {
     srv = await startTestServer();
@@ -82,9 +93,9 @@ describe('signature verification', () => {
     event = paymentIntentSucceeded({ orderId: order.id, paymentIntentId: order.stripePaymentIntentId });
   });
 
-  function assertRejected(res) {
+  function assertRejected(res: WebhookResponse) {
     assert.equal(res.status, 400);
-    assert.ok(res.body.error.message);
+    assert.ok(res.body.error?.message);
     assert.equal(orderRow(srv, order.id).status, 'pending');
     assert.equal(count(srv, 'webhook_events'), 0);
     assert.equal(count(srv, 'processed_events'), 0);
@@ -94,6 +105,7 @@ describe('signature verification', () => {
     const before = orderRow(srv, order.id);
     const { header } = sign(event, 'whsec_test_secret');
     const tampered = structuredClone(event);
+    assert.ok(tampered.type === 'payment_intent.succeeded');
     tampered.data.object.amount = 1;
     assertRejected(await srv.postWebhook(tampered, { header }));
     assert.deepEqual(orderRow(srv, order.id), before);
@@ -125,7 +137,7 @@ describe('signature verification', () => {
 });
 
 describe('no webhook secret configured', () => {
-  let srv;
+  let srv: TestServer;
   before(async () => {
     srv = await startTestServer({ webhookSecret: null });
   });
@@ -146,7 +158,7 @@ describe('no webhook secret configured', () => {
 });
 
 describe('R4.2 transitions', () => {
-  let srv;
+  let srv: TestServer;
   beforeEach(async () => {
     srv = await startTestServer();
   });
@@ -158,6 +170,7 @@ describe('R4.2 transitions', () => {
     const order = await createCheckoutOrder(srv);
     assert.equal(order.stripePaymentIntentId, null);
     const event = checkoutSessionCompleted({ orderId: order.id, sessionId: order.stripeCheckoutSessionId });
+    assert.ok(event.type === 'checkout.session.completed');
     assertApplied(await srv.postWebhook(event));
 
     const after = await getOrder(srv, order.id);
@@ -199,6 +212,7 @@ describe('R4.2 transitions', () => {
     assertApplied(await srv.postWebhook(paymentIntentSucceeded({ orderId: order.id, paymentIntentId: pi })));
 
     const refund = chargeRefunded({ paymentIntentId: pi });
+    assert.ok(refund.type === 'charge.refunded');
     assert.deepEqual(refund.data.object.metadata, {});
     assertApplied(await srv.postWebhook(refund));
 
@@ -222,7 +236,7 @@ describe('R4.2 transitions', () => {
 });
 
 describe('Checkout sends two events per payment', () => {
-  let srv;
+  let srv: TestServer;
   beforeEach(async () => {
     srv = await startTestServer();
   });
@@ -230,7 +244,7 @@ describe('Checkout sends two events per payment', () => {
     await srv.close();
   });
 
-  async function deliver(order, first) {
+  async function deliver(order: Order, first: 'session' | 'payment_intent') {
     const pi = 'pi_test_checkout_pair';
     const completed = checkoutSessionCompleted({
       orderId: order.id,
@@ -240,7 +254,7 @@ describe('Checkout sends two events per payment', () => {
     // Checkout copies payment_intent_data.metadata onto the PaymentIntent, so it carries order_id too.
     const succeeded = paymentIntentSucceeded({ orderId: order.id, paymentIntentId: pi });
     const events = first === 'session' ? [completed, succeeded] : [succeeded, completed];
-    const outcomes = [];
+    const outcomes: Array<Outcome | undefined> = [];
     for (const event of events) {
       const res = await srv.postWebhook(event);
       assert.equal(res.status, 200);
@@ -249,7 +263,7 @@ describe('Checkout sends two events per payment', () => {
     return { outcomes, events };
   }
 
-  for (const first of ['session', 'payment_intent']) {
+  for (const first of ['session', 'payment_intent'] as const) {
     test(`exactly one is applied when the ${first} event arrives first`, async () => {
       const order = await createCheckoutOrder(srv);
       const { outcomes, events } = await deliver(order, first);
@@ -259,16 +273,16 @@ describe('Checkout sends two events per payment', () => {
       const after = await getOrder(srv, order.id);
       assert.equal(after.status, 'paid');
       assert.equal(after.stripePaymentIntentId, 'pi_test_checkout_pair');
-      assert.equal(
-        srv.db.prepare(`SELECT COUNT(*) AS n FROM webhook_events WHERE order_id = ? AND outcome = 'applied'`).get(order.id).n,
-        1,
-      );
+      const applied = srv.db
+        .prepare(`SELECT COUNT(*) AS n FROM webhook_events WHERE order_id = ? AND outcome = 'applied'`)
+        .get(order.id);
+      assert.equal(applied?.n, 1);
     });
   }
 });
 
 describe('idempotency and ordering', () => {
-  let srv;
+  let srv: TestServer;
   beforeEach(async () => {
     srv = await startTestServer();
   });
@@ -311,7 +325,7 @@ describe('idempotency and ordering', () => {
 });
 
 describe('events that change nothing', () => {
-  let srv;
+  let srv: TestServer;
   before(async () => {
     srv = await startTestServer();
   });
@@ -348,7 +362,7 @@ describe('events that change nothing', () => {
   });
 
   test('the events API lists every logged outcome', async () => {
-    const events = await (await fetch(`${srv.url}/api/events`)).json();
+    const events = (await (await fetch(`${srv.url}/api/events`)).json()) as EventLogRow[];
     assert.deepEqual(
       events.map((e) => e.outcome).sort(),
       ['ignored_unhandled_type', 'ignored_unknown_order'],
@@ -357,7 +371,7 @@ describe('events that change nothing', () => {
 });
 
 describe('processing failure', () => {
-  let srv;
+  let srv: TestServer;
   before(async () => {
     srv = await startTestServer();
   });

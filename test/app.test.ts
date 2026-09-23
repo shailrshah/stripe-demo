@@ -6,11 +6,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startTestServer } from './helpers/test-server.ts';
+import type { TestServer } from './helpers/test-server.ts';
 import { paymentIntentSucceeded } from './helpers/stripe-events.ts';
+import type { EventLogRow, Order } from '../src/types.ts';
+
+interface OrderResponse { order: Order; events: EventLogRow[] }
 
 const serverPath = fileURLToPath(new URL('../src/server.ts', import.meta.url));
 
-let srv;
+let srv: TestServer;
 
 before(async () => {
   srv = await startTestServer();
@@ -23,14 +27,14 @@ after(async () => {
 test('serves the catalog page at /', async () => {
   const res = await fetch(`${srv.url}/`);
   assert.equal(res.status, 200);
-  assert.match(res.headers.get('content-type'), /text\/html/);
+  assert.match(res.headers.get('content-type') ?? '', /text\/html/);
   assert.match(await res.text(), /index\.js/);
 });
 
 test('serves the API through the assembled app', async () => {
   const res = await fetch(`${srv.url}/api/products`);
   assert.equal(res.status, 200);
-  const products = await res.json();
+  const products = (await res.json()) as Array<{ price: unknown }>;
   assert.ok(products.length > 0);
   assert.ok(products.every((p) => typeof p.price === 'string'));
 });
@@ -48,7 +52,7 @@ test('malformed JSON bodies return a JSON 400', async () => {
     body: '{not json',
   });
   assert.equal(res.status, 400);
-  assert.ok((await res.json()).error.message);
+  assert.ok(((await res.json()) as { error: { message: string } }).error.message);
 });
 
 test('an embedded payment becomes paid only after its signed webhook', async () => {
@@ -58,9 +62,9 @@ test('an embedded payment becomes paid only after its signed webhook', async () 
     body: JSON.stringify({ productId: 'duck' }),
   });
   assert.equal(created.status, 201);
-  const { orderId } = await created.json();
+  const { orderId } = (await created.json()) as { orderId: string };
 
-  const before = await (await fetch(`${srv.url}/api/orders/${orderId}`)).json();
+  const before = (await (await fetch(`${srv.url}/api/orders/${orderId}`)).json()) as OrderResponse;
   assert.equal(before.order.status, 'pending');
 
   const webhook = await srv.postWebhook(
@@ -69,7 +73,7 @@ test('an embedded payment becomes paid only after its signed webhook', async () 
   assert.equal(webhook.status, 200);
   assert.equal(webhook.body.outcome, 'applied');
 
-  const afterPay = await (await fetch(`${srv.url}/api/orders/${orderId}`)).json();
+  const afterPay = (await (await fetch(`${srv.url}/api/orders/${orderId}`)).json()) as OrderResponse;
   assert.equal(afterPay.order.status, 'paid');
   assert.equal(afterPay.events.length, 1);
   assert.equal(afterPay.events[0].outcome, 'applied');
