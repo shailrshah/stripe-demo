@@ -41,7 +41,7 @@ Stack: Node 24, Express, SQLite through the built-in `node:sqlite` module, and p
 3. In a second terminal, forward webhooks to the app:
 
    ```sh
-   stripe listen --forward-to 127.0.0.1:3000/webhook
+   stripe listen --all-snapshot --forward-to 127.0.0.1:3000/webhook
    ```
 
    It prints a signing secret (`whsec_…`). Paste it into `.env` as `STRIPE_WEBHOOK_SECRET`. Keep this terminal running while you use the app.

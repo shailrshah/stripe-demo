@@ -107,7 +107,7 @@ Priority is **Must**, **Should** or **Could**.
 - R7.4 The server listens on `127.0.0.1` only, on a port that is configurable and defaults to `3000`.
 
 ### R8 Developer experience (Must)
-- R8.1 A README explains setup: getting test keys, creating `.env` from `.env.example`, installing the Stripe CLI, running `stripe listen --forward-to 127.0.0.1:<port>/webhook` and starting the app.
+- R8.1 A README explains setup: getting test keys, creating `.env` from `.env.example`, installing the Stripe CLI, running `stripe listen --all-snapshot --forward-to 127.0.0.1:<port>/webhook` and starting the app.
 - R8.2 The README lists the test cards to try, at least:
   - `4242 4242 4242 4242`: succeeds
   - `4000 0000 0000 9995`: declined for insufficient funds

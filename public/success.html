@@ -34,7 +34,7 @@
 
     <p id="hint" hidden>
       Still <strong>pending</strong> after 30 seconds. Check that
-      <code>stripe listen --forward-to 127.0.0.1:3000/webhook</code> is running
+      <code>stripe listen --all-snapshot --forward-to 127.0.0.1:3000/webhook</code> is running
       and that <code>STRIPE_WEBHOOK_SECRET</code> in <code>.env</code> matches the
       signing secret it prints, then reload this page.
     </p>

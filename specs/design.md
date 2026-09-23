@@ -398,7 +398,7 @@ verifier = createWebhookVerifier(config.webhookSecret)
 if (!config.webhookSecret) console.warn(<prominent banner>)                   (R7.3)
 app      = createApp({ config, db, gateway, verifier, logger: console })
 app.listen(config.port, '127.0.0.1')                                          (R7.4)
-print: app URL, and "stripe listen --forward-to 127.0.0.1:<port>/webhook"
+print: app URL, and "stripe listen --all-snapshot --forward-to 127.0.0.1:<port>/webhook"
 ```
 
 ## 13. Testing strategy

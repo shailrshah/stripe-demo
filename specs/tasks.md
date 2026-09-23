@@ -136,7 +136,7 @@ Sections:
 - Prerequisites: Node 24 and the Stripe CLI (`brew install stripe/stripe-cli/stripe`, then `stripe login`).
 - Setup:
   - Copy `.env.example` to `.env` and fill in the test keys.
-  - Run `stripe listen --forward-to 127.0.0.1:3000/webhook`, then paste the `whsec_` it prints.
+  - Run `stripe listen --all-snapshot --forward-to 127.0.0.1:3000/webhook`, then paste the `whsec_` it prints.
   - Start with `npm start`.
 - Test cards: the three from R8.2, with any future expiry date, any CVC and any ZIP code.
 - Exercising webhooks:

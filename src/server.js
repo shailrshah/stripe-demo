@@ -34,5 +34,5 @@ const app = createApp({ config, db, gateway, verifier, logger: console });
 
 app.listen(config.port, '127.0.0.1', () => {
   console.log(`Stripe demo running at ${config.baseUrl}`);
-  console.log(`Forward webhooks with: stripe listen --forward-to 127.0.0.1:${config.port}/webhook`);
+  console.log(`Forward webhooks with: stripe listen --all-snapshot --forward-to 127.0.0.1:${config.port}/webhook`);
 });
