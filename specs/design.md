@@ -81,10 +81,16 @@ stripe-demo/
     ├── catalog.test.js
     ├── db.test.js
     ├── orders.test.js
+    ├── event-log.test.js
     ├── transitions.test.js
+    ├── stripe-gateway.test.js
+    ├── webhook-verifier.test.js
+    ├── stripe-events.test.js
     ├── webhook-processor.test.js
     ├── api.test.js
     ├── checkout.test.js
+    ├── webhook-router.test.js
+    ├── app.test.js
     ├── webhook.integration.test.js
     └── persistence.integration.test.js
 ```
@@ -284,7 +290,7 @@ A metadata `order_id` that doesn't exist in the database counts as unknown. That
 
 ## 9. Stripe gateway (`src/stripe-gateway.js`)
 
-`createStripeGateway(secretKey)` wraps `new Stripe(secretKey)`. It uses the library's pinned API version (`2026-08-26.dahlia` for stripe@22). No other module imports `stripe`, except the verifier, which uses only the static `Stripe.webhooks`.
+`createStripeGateway(secretKey, { client } = {})` wraps `client ?? new Stripe(secretKey)`. The optional `client` lets the unit test check the exact parameters sent to Stripe without network access. It uses the library's pinned API version (`2026-08-26.dahlia` for stripe@22). No other module imports `stripe`, except the verifier, which uses only the static `Stripe.webhooks`.
 
 ```js
 createCheckoutSession({ orderId, product, successUrl, cancelUrl })  // → { id, url }
@@ -306,11 +312,21 @@ The parameters sent to Stripe:
 
 ## 10. HTTP API (`src/app.js`, `src/routes/*`)
 
+Each route module exports a factory that returns an `express.Router`, so each can be built and tested without `app.js`:
+
+```js
+createWebhookRouter({ verifier, processor, logger })                     // routes/webhook.js: applies express.raw itself
+createCheckoutRouter({ config, orders, gateway, logger, publicDir })     // routes/checkout.js
+createApiRouter({ config, orders, eventLog, gateway, logger })           // routes/api.js: mounted at /api
+```
+
+`logger` is anything with `info`, `warn` and `error` methods: `console` in production, and a silent stub in tests.
+
 `createApp({ config, db, gateway, verifier, logger })` builds the repositories and the processor, then mounts, in this order:
-1. The webhook route (raw body)
+1. The webhook router (raw body)
 2. `express.json()` and `express.urlencoded()`
-3. The checkout routes
-4. `/api` routes
+3. The checkout router
+4. The API router at `/api`
 5. `express.static('public')`
 6. A JSON 404 handler and an error handler
 
@@ -420,7 +436,7 @@ Every test uses `node:test` and `node:assert/strict`, and `npm test` runs `node 
 | R9 | `db.js`, `orders.js`, `event-log.js` |
 | N1–N4 | §1 wiring, §13 tests, `package.json` dependencies, logger calls in the processor and routes |
 
-## 15. Parallelization boundaries (input to task.md)
+## 15. Parallelization boundaries (input to tasks.md)
 
 Once the contracts in §3–§10 are fixed, modules depend only on those interfaces, not on each other's implementations:
 
