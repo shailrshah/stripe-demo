@@ -305,7 +305,9 @@ Implement `createApiRouter` and every `/api` row of design §10, including the D
   - The order is persisted with `method = embedded` and a PaymentIntent ID.
 - An unknown product gives `400`, no order row and no gateway call.
 - A gateway failure gives `502`.
-- Order list and detail include events and Dashboard URLs for both the PaymentIntent and session-only cases. An unknown order gives `404`.
+- The order list and the order detail both enrich every order with `productName`, `price` and `dashboardUrl`, for both the PaymentIntent and session-only cases.
+- The detail's `events` rows each carry `dashboardUrl`.
+- An unknown order gives `404`.
 - Refunds:
   - `202` for a `paid` order with a PaymentIntent.
   - `409` for `pending`, and for `paid` without a PaymentIntent.
@@ -413,4 +415,6 @@ This test uses a temp-file DB:
    - It shows the warning banner when there's no `whsec_` secret.
    - It refuses `sk_live_` keys (acceptance check 6, also covered by T13).
 3. The user runs `stripe listen` and walks through acceptance checks 1–5 and 8–10 in the browser. That also tests F1–F4 by hand, since they have no automated tests.
+   - Check that `stripe events resend <evt_id>` actually reaches the `stripe listen` session. If it doesn't, find the CLI's local endpoint ID and use `--webhook-endpoint`, then update the README.
+   - Check that the frontend pages share the nav markup and CSS classes that F1 defines, since F2–F4 were written before `styles.css` existed.
 4. Every file named in design §2 exists and the traceability table in §14 holds. Fix any gaps through the task that owns the file.

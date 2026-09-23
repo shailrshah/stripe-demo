@@ -9,7 +9,7 @@ A small demo store for learning how Stripe payments work from start to finish. I
 **In scope**
 - A tiny product catalog with a checkout flow built on Stripe
 - Two ways to pay: Stripe-hosted Checkout, and an embedded Payment Element
-- Payment confirmation through Stripe webhooks, forwarded to localhost by the Stripe CLI. Every event is verified, stored and applied once.
+- Payment confirmation through Stripe webhooks, forwarded to the local server by the Stripe CLI. Every event is verified, stored and applied once.
 - Keeping orders and webhook events in a local SQLite database
 - Order status and a webhook event log that visitors can see
 - Automated unit and integration tests
@@ -23,7 +23,7 @@ A small demo store for learning how Stripe payments work from start to finish. I
 
 ## Constraints
 
-- **C1 Local only.** The frontend and backend run on `localhost`. The only outbound network traffic is to Stripe (the API, Stripe.js and hosted Checkout) and the Stripe CLI's webhook forwarding.
+- **C1 Local only.** The frontend and backend run on the loopback address `127.0.0.1`. The only outbound network traffic is to Stripe (the API, Stripe.js and hosted Checkout) and the Stripe CLI's webhook forwarding.
 - **C2 Test mode only.** The system accepts only Stripe test keys (`sk_test_…`, `pk_test_…`).
 - **C3 No card data on our server.** Card details are entered only into Stripe-hosted or Stripe-rendered fields. Our server never receives, logs or stores card numbers.
 - **C4 Secrets out of source control.** API keys and the webhook signing secret come from environment variables or a git-ignored `.env` file.
@@ -107,7 +107,7 @@ Priority is **Must**, **Should** or **Could**.
 - R7.4 The server listens on `127.0.0.1` only, on a port that is configurable and defaults to `3000`.
 
 ### R8 Developer experience (Must)
-- R8.1 A README explains setup: getting test keys, creating `.env` from `.env.example`, installing the Stripe CLI, running `stripe listen --forward-to localhost:<port>/webhook` and starting the app.
+- R8.1 A README explains setup: getting test keys, creating `.env` from `.env.example`, installing the Stripe CLI, running `stripe listen --forward-to 127.0.0.1:<port>/webhook` and starting the app.
 - R8.2 The README lists the test cards to try, at least:
   - `4242 4242 4242 4242`: succeeds
   - `4000 0000 0000 9995`: declined for insufficient funds

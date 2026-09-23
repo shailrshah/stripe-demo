@@ -64,7 +64,7 @@ stripe-demo/
 │       └── webhook.js      # POST /webhook
 ├── public/
 │   ├── styles.css
-│   ├── common.js           # fetchJson, statusBadge, dashboardUrl helpers
+│   ├── common.js           # fetchJson, statusBadge, outcomeBadge
 │   ├── index.html  + index.js    # catalog (R1)
 │   ├── pay.html    + pay.js      # Payment Element (R3)
 │   ├── success.html+ success.js  # polls order status (R2.3, R4.5)
@@ -250,10 +250,12 @@ This route is mounted **before** `express.json()`, with `express.raw({ type: 'ap
 
 | Condition | Response |
 |---|---|
-| `WebhookNotConfiguredError` | `503`. Stripe keeps retrying, so events arrive once the secret is set |
+| `WebhookNotConfiguredError` | `503` |
 | `WebhookSignatureError` | `400` `{ error }`, and nothing is written (R4.1) |
-| Processor throws | `500`. The transaction is rolled back and the event isn't marked processed, so Stripe retries (R4.9) |
+| Processor throws | `500`. The transaction is rolled back and the event isn't marked processed, so a redelivery is processed normally (R4.9) |
 | Otherwise | `200` `{ received: true, outcome }` (R4.3, R4.4) |
+
+**Retries:** in production, Stripe retries any non-2xx response with backoff for up to 3 days. `stripe listen` does **not** retry forwarded events. Locally, a redelivery means `stripe events resend <evt_id>` (T16 checks that this reaches the listen session).
 
 ### 8.3 Processor (`src/webhook-processor.js`)
 
@@ -262,21 +264,27 @@ This route is mounted **before** `express.json()`, with `express.raw({ type: 'ap
 The entire body runs inside `BEGIN IMMEDIATE … COMMIT`. On any exception it runs `ROLLBACK` and rethrows (R4.8). There is no `await` inside, so nothing interleaves.
 
 ```
-1. if eventLog.isProcessed(event.id):
-       append(outcome='ignored_duplicate', orderId=<resolved if possible>)   → commit, return
-2. target = eventTarget(event)
-   if target is null:  outcome = 'ignored_unhandled_type'
-3. order = resolveOrder(event)
-   if order is null:   outcome = 'ignored_unknown_order'
-4. backfill: on checkout.session.completed with a payment_intent id and
-   the order has none → orders.attachPaymentIntent(...)   (enables refund lookup)
-5. if target and order:
-       if canTransition(order.status, target): orders.setStatus → outcome 'applied'
-       else: outcome 'ignored_transition', detail "<from> → <to> not allowed"
-6. eventLog.markProcessed(event.id)
-7. eventLog.append({ event, orderId, outcome, detail })       ← last write on purpose
-8. commit; logger.info(type, id, outcome, status change)      (N4)
+1. order = resolveOrder(event)                     // read-only; may be null
+2. outcome/detail, first match wins:
+   a. eventLog.isProcessed(event.id)          → 'ignored_duplicate'      (skip step 3)
+   b. event.type not in HANDLED_TYPES         → 'ignored_unhandled_type'
+   c. order is null                           → 'ignored_unknown_order'
+   d. otherwise:
+        backfill: checkout.session.completed with a payment_intent id and
+                  the order has none → orders.attachPaymentIntent(...)  (enables refund lookup)
+        target = eventTarget(event)
+        target is null                 → 'ignored_transition', detail "no status change requested"
+        target === order.status        → 'ignored_transition', detail "already <status>"
+        canTransition(status, target)  → orders.setStatus; 'applied', detail "<from> → <to>"
+        else                           → 'ignored_transition', detail "<from> → <to> not allowed"
+3. eventLog.markProcessed(event.id)
+4. eventLog.append({ event, orderId: order?.id ?? null, outcome, detail })   ← last write on purpose
+5. commit; logger.info(type, id, outcome, detail)                            (N4)
 ```
+
+`orderId` is `null` whenever no order row matched. `webhook_events.order_id` is a foreign key, so storing a metadata `order_id` that doesn't exist would fail.
+
+A handled type whose `eventTarget` is `null` gets `ignored_transition` with the detail "no status change requested", not `ignored_unhandled_type`. Examples are a partial refund, or a completed session that isn't paid. The event type *is* handled; it just doesn't ask for a status change.
 
 **Resolving the order**, trying each in turn until one matches:
 1. `data.object.metadata.order_id`
@@ -286,7 +294,7 @@ The entire body runs inside `BEGIN IMMEDIATE … COMMIT`. On any exception it ru
 
 A metadata `order_id` that doesn't exist in the database counts as unknown. That covers `stripe trigger` fixtures, which carry no metadata at all (acceptance check 10).
 
-**Same-status events:** a hosted Checkout payment sends both `payment_intent.succeeded` and `checkout.session.completed`, in either order. Whichever arrives second asks for `paid → paid`, which isn't in `ALLOWED`, so it's logged as `ignored_transition` with the detail "already paid". This is expected and teaches that you often receive more than one event per payment.
+**Same-status events:** a hosted Checkout payment sends both `payment_intent.succeeded` and `checkout.session.completed`, in either order. Whichever arrives second asks for `paid → paid`, which isn't in `ALLOWED`, so it's logged as `ignored_transition` with the detail "already paid" (step 2d). This is expected and teaches that you often receive more than one event per payment.
 
 ## 9. Stripe gateway (`src/stripe-gateway.js`)
 
@@ -340,7 +348,7 @@ Errors are returned as `{ "error": { "message": "…" } }`.
 | `GET /cancel` | `?order_id=` | `200` cancel.html | – | R2.4 |
 | `POST /api/payment-intents` | JSON `{ productId }` | `201 { orderId, clientSecret }` | `400` unknown product | R3.1 |
 | `GET /api/orders` | – | `200 [order + productName, price, dashboardUrl]` | | R5.1, R5.2 |
-| `GET /api/orders/:id` | – | `200 { order, events }` | `404` | R4.5, R5.4 |
+| `GET /api/orders/:id` | – | `200 { order: order + productName, price, dashboardUrl, events: [event log rows + dashboardUrl] }` | `404` | R4.5, R5.4 |
 | `POST /api/orders/:id/refund` | – | `202 { refundId }` | `404`; `409` unless `paid` with a PaymentIntent id | R6 |
 | `GET /api/events` | – | `200 [event log rows + dashboardUrl]` | | R5.3 |
 | `POST /webhook` | raw Stripe event | see §8.2 | | R4 |
@@ -438,16 +446,8 @@ Every test uses `node:test` and `node:assert/strict`, and `npm test` runs `node 
 
 ## 15. Parallelization boundaries (input to tasks.md)
 
-Once the contracts in §3–§10 are fixed, modules depend only on those interfaces, not on each other's implementations:
-
-- **Foundation, done first and in serial:** `package.json`, `.gitignore`, `.env.example`, `db.js` (the schema), and the test helpers.
-- **Can proceed independently after that:**
-  - config
-  - catalog
-  - orders and event-log repositories
-  - transitions
-  - gateway
-  - verifier
-  - frontend pages (against the API contract in §10)
-- **Needs the repositories and transitions:** the webhook processor
-- **Needs the above:** `app.js` and its routes, then `server.js`, the integration tests and the README
+Once the contracts in §3–§10 are fixed, modules depend only on those interfaces, not on each other's implementations. [tasks.md](tasks.md) has the actual waves and file ownership. In summary:
+- The frontend and README need only the contracts.
+- Leaf modules need only `package.json` and the schema.
+- The processor and routers need the leaf modules.
+- `app.js` puts everything together, and the integration tests come last.
