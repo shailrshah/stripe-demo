@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Payment result · Stripe Demo Shop</title>
+  <title>Payment result · Stripe Demo</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
   <header class="site-header">
     <a class="brand" href="/">Stripe Demo</a>
     <nav class="nav">
-      <a href="/">Shop</a>
+      <a href="/" aria-current="page">Shop</a>
       <a href="/orders.html">Orders</a>
       <a href="/events.html">Events</a>
     </nav>
@@ -19,9 +19,9 @@
   <main>
     <h1>Thanks for your order</h1>
 
-    <p id="message">Loading order…</p>
+    <p id="message" class="lead">Loading order…</p>
 
-    <dl id="order" hidden>
+    <dl id="order" class="panel details" hidden>
       <dt>Order ID</dt>
       <dd id="order-id"></dd>
       <dt>Product</dt>
@@ -32,16 +32,19 @@
       <dd id="status"></dd>
     </dl>
 
-    <p id="hint" hidden>
+    <p id="hint" class="note" hidden>
       Still <strong>pending</strong> after 30 seconds. Check that
       <code>stripe listen --all-snapshot --forward-to 127.0.0.1:3000/webhook</code> is running
       and that <code>STRIPE_WEBHOOK_SECRET</code> in <code>.env</code> matches the
       signing secret it prints, then reload this page.
     </p>
 
-    <p><a id="detail-link" href="/orders.html" hidden>View order details and its webhook events</a></p>
+    <div class="actions">
+      <a id="detail-link" class="btn btn-primary" href="/orders.html" hidden>View order details and its webhook events</a>
+      <a class="btn" href="/">Back to the shop</a>
+    </div>
 
-    <aside>
+    <aside class="note">
       <h2>Why might this say “pending”?</h2>
       <p>
         Being redirected here doesn't prove the payment succeeded: anyone can open this URL.

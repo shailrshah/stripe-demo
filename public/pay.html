@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pay · Stripe Demo Shop</title>
+  <title>Pay · Stripe Demo</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="https://js.stripe.com/v3/"></script>
   <script type="module" src="/pay.js"></script>
@@ -12,21 +12,21 @@
   <header class="site-header">
     <a class="brand" href="/">Stripe Demo</a>
     <nav class="nav">
-      <a href="/">Shop</a>
+      <a href="/" aria-current="page">Shop</a>
       <a href="/orders.html">Orders</a>
       <a href="/events.html">Events</a>
     </nav>
   </header>
   <main>
     <h1>Pay with the embedded form</h1>
-    <p id="product-summary"></p>
-    <p id="status">Loading…</p>
-    <form id="payment-form" hidden>
+    <p id="product-summary" class="lead"></p>
+    <p id="status" class="lead">Loading…</p>
+    <form id="payment-form" class="panel" hidden>
       <div id="payment-element"></div>
       <p id="payment-error" class="error" role="alert"></p>
-      <button id="submit" type="submit" disabled>Pay</button>
+      <div class="actions"><button id="submit" class="btn btn-primary" type="submit" disabled>Pay</button></div>
     </form>
-    <p><a href="/">Back to the shop</a></p>
+    <div class="actions"><a class="btn" href="/">Back to the shop</a></div>
   </main>
 </body>
 </html>

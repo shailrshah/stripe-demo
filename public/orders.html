@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Orders · Stripe Demo Shop</title>
+  <title>Orders · Stripe Demo</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -15,12 +15,13 @@
       <a href="/events.html">Events</a>
     </nav>
   </header>
-  <main class="wide">
+  <main>
     <h1>Orders</h1>
+    <p class="lead">Every order, newest first. Status changes only when a webhook arrives.</p>
     <p class="note">A refund only asks Stripe to refund the payment. The order becomes <code>refunded</code> when the <code>charge.refunded</code> webhook arrives, so <code>stripe listen</code> must be running.</p>
     <p id="error" class="error" role="alert" hidden></p>
     <p id="empty" hidden>No orders yet. <a href="/">Buy something</a> to create one.</p>
-    <div class="table-wrap" style="overflow-x: auto">
+    <div class="table-wrap">
       <table id="orders" hidden>
         <thead>
           <tr>

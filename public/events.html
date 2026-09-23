@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Webhook events · Stripe Demo Shop</title>
+  <title>Webhook events · Stripe Demo</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -15,13 +15,13 @@
       <a href="/events.html" aria-current="page">Events</a>
     </nav>
   </header>
-  <main class="wide">
+  <main>
     <h1>Webhook events</h1>
-    <p>Every verified webhook delivery, newest first, including duplicates and events that changed nothing.</p>
-    <p><button type="button" id="refresh">Refresh</button> <span id="updated"></span></p>
+    <p class="lead">Every verified webhook delivery, newest first, including duplicates and events that changed nothing.</p>
+    <div class="toolbar"><button type="button" id="refresh" class="btn btn-sm">Refresh</button> <span id="updated" class="muted"></span></div>
     <p id="error" class="error" role="alert" hidden></p>
     <p id="empty" hidden>No webhook events received yet. Is <code>stripe listen</code> running?</p>
-    <div class="table-wrap" style="overflow-x: auto">
+    <div class="table-wrap">
       <table id="events" hidden>
         <thead>
           <tr>

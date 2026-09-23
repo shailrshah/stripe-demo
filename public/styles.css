@@ -16,19 +16,20 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* Styled classes like .error set display; keep the hidden attribute authoritative. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--bg);
 }
 
+/* One width for every page, wide enough for the tables, so content never jumps between pages. */
 main {
-  max-width: 960px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 24px 16px 48px;
 }
-
-/* Table pages need more room than the reading-width pages. */
-main.wide { max-width: 1280px; }
 
 h1 { font-size: 1.6rem; margin: 0 0 8px; }
 h2 { font-size: 1.15rem; margin: 0 0 4px; }
@@ -43,7 +44,38 @@ code {
 
 .muted { color: var(--muted); }
 
+/* Every page: h1, then a muted lead paragraph. */
+.lead { color: var(--muted); margin: 0 0 20px; max-width: 72ch; }
+main > h2, section > h2 { margin: 28px 0 8px; }
+
+/* One callout style for explanations and hints. */
+.note {
+  margin: 0 0 20px;
+  padding: 12px 16px;
+  background: #f0efff;
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+}
+.note h2 { font-size: 1rem; margin: 0 0 4px; }
+.note p { margin: 0; }
+.actions + .note { margin-top: 24px; }
+
+/* Key-value fields (success and order detail pages). */
+.details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 10px 24px;
+  max-width: 720px;
+  margin: 0 0 20px;
+}
+.details dt { color: var(--muted); }
+.details dd { margin: 0; overflow-wrap: anywhere; }
+
+.toolbar { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+
+.error:empty { display: none; }
 .error {
+  margin: 0 0 16px;
   background: var(--error-bg);
   color: var(--error-text);
   padding: 10px 12px;
@@ -106,6 +138,7 @@ code {
 .btn-primary:hover { background: var(--accent-hover); }
 
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-sm { padding: 4px 10px; font-size: 0.85rem; }
 
 .actions {
   display: flex;
@@ -122,7 +155,7 @@ code {
   margin: 24px 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
 }
 
@@ -195,7 +228,6 @@ td { vertical-align: middle; }
 
 .row-actions > * + * { margin-left: 8px; }
 .row-actions > .row-message { margin: 6px 0 0; white-space: normal; }
-.row-actions button { padding: 4px 10px; font: inherit; font-size: 0.85rem; cursor: pointer; }
 tbody tr:last-child td { border-bottom: none; }
 
 /* Badges: .badge .badge-<status|outcome>, one color per value (design §5) */
@@ -222,7 +254,11 @@ tbody tr:last-child td { border-bottom: none; }
 .badge-ignored_unknown_order  { background: #ffe8d9; color: #b93815; }
 .badge-ignored_unhandled_type { background: #eef0f3; color: #414552; }
 
+#payment-form { max-width: 560px; }
+
 @media (max-width: 480px) {
   h1 { font-size: 1.35rem; }
+  .details { grid-template-columns: 1fr; gap: 2px; }
+  .details dd { margin-bottom: 10px; }
   .actions .btn, .actions form, .actions form .btn { width: 100%; }
 }

@@ -70,6 +70,7 @@ function fillRow(tr, order) {
 function refundButton(order, tr) {
   const button = document.createElement('button');
   button.type = 'button';
+  button.className = 'btn btn-sm';
   button.textContent = 'Refund';
   button.addEventListener('click', () => refund(order, tr, button));
   return button;
