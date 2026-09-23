@@ -2,6 +2,10 @@
 
 A tiny shop for learning how Stripe payments work from start to finish: creating a payment, confirming it through webhooks, and recording the result.
 
+<p align="center">
+  <img src="assets/demo.gif" alt="Stripe Demo Shop" width="1000">
+</p>
+
 - **Local only.** The server listens on `127.0.0.1` and is never meant to be deployed.
 - **Test mode only.** The server refuses to start unless the keys are `sk_test_…` and `pk_test_…`. Live keys (`sk_live_…`) are rejected with an error.
 - **No real money.** Test mode uses Stripe's test cards. Real card numbers are never accepted.
