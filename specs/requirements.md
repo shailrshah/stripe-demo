@@ -9,15 +9,16 @@ A small demo store for learning how Stripe payments work from start to finish. I
 **In scope**
 - A tiny product catalog with a checkout flow built on Stripe
 - Two ways to pay: Stripe-hosted Checkout, and an embedded Payment Element
-- Payment confirmation through webhooks
-- Order status tracking that visitors can see
-- Automated tests
+- Payment confirmation through Stripe webhooks, forwarded to localhost by the Stripe CLI. Every event is verified, stored and applied once.
+- Keeping orders and webhook events in a local SQLite database
+- Order status and a webhook event log that visitors can see
+- Automated unit and integration tests
 
 **Out of scope**
 - Deploying anywhere or making the app reachable from the internet
 - Live-mode keys, real cards and real payouts
 - User accounts, authentication, shopping carts with several items, inventory, tax and shipping
-- Keeping data across server restarts
+- Database servers, migration tooling and ORMs
 - Subscriptions, Connect and other Stripe products
 
 ## Constraints
@@ -26,13 +27,14 @@ A small demo store for learning how Stripe payments work from start to finish. I
 - **C2 Test mode only.** The system accepts only Stripe test keys (`sk_test_…`, `pk_test_…`).
 - **C3 No card data on our server.** Card details are entered only into Stripe-hosted or Stripe-rendered fields. Our server never receives, logs or stores card numbers.
 - **C4 Secrets out of source control.** API keys and the webhook signing secret come from environment variables or a git-ignored `.env` file.
-- **C5 Stack.** Node.js (v24+) with Express on the backend, and plain HTML, CSS and JS on the frontend (no build step). The frontend is served by the backend.
+- **C5 Stack.** Node.js (v24+) with Express on the backend, and plain HTML, CSS and JS on the frontend (no build step). The frontend is served by the backend. Data is stored in SQLite through Node's built-in `node:sqlite` module.
 
 ## Glossary
 
 - **Product:** an item for sale, with a name, description and price in USD cents.
 - **Order:** our local record of one attempt to buy one product. It links to a Stripe Checkout Session or PaymentIntent.
 - **Order status:** one of `pending`, `paid`, `failed`, `canceled` or `refunded`.
+- **Webhook event:** an Event object that Stripe sends to our webhook endpoint, identified by its Stripe event ID (`evt_…`).
 
 ## Functional requirements
 
@@ -71,15 +73,26 @@ Priority is **Must**, **Should** or **Could**.
   - `payment_intent.payment_failed`: `failed`
   - `checkout.session.expired`: `canceled`
   - `charge.refunded`: `refunded`
-- R4.3 Webhook handling is idempotent. Receiving the same event again does not change the result or cause an error.
+- R4.3 Webhook handling is idempotent. The IDs of processed events are saved in the database. An event that is received again, even after a server restart, gets a 2xx response and changes nothing.
 - R4.4 Events for unknown orders, or of types we don't handle, are acknowledged with a 2xx response and logged, and change nothing.
 - R4.5 The success page never marks an order `paid` by itself. It shows whatever the latest webhook set, and it may poll until the status stops being `pending`.
+- R4.6 Stripe doesn't guarantee that events arrive in order, so order status moves only along these transitions:
+  - `pending` → `paid`, `failed` or `canceled`
+  - `failed` → `paid` (a retry that succeeds)
+  - `paid` → `refunded`
+
+  Any other transition, such as `payment_intent.payment_failed` arriving after `paid`, is ignored and logged. It still counts as processed.
+- R4.7 Every verified event is written to an event log. Each entry records the event ID, type, Stripe `created` time, when we received it, the related order (if any) and the outcome: `applied`, `ignored_duplicate`, `ignored_transition`, `ignored_unknown_order` or `ignored_unhandled_type`.
+- R4.8 Recording an event and changing the order status happen in one database transaction, so a crash can't leave an event marked processed without its status change, or the reverse.
+- R4.9 If processing fails unexpectedly, the endpoint returns a 5xx response and does not mark the event processed, so Stripe will retry it.
 
 ### R5 Order visibility (Must)
 **User story:** As a learner, I want to see orders and their status so that I can check what Stripe told the server.
 
-- R5.1 An orders page lists every order in the current server session: ID, product, amount, payment method (Checkout or embedded), status, the Stripe object ID and when it was created.
+- R5.1 An orders page lists every stored order, newest first: ID, product, amount, payment method (Checkout or embedded), status, the Stripe object ID and when it was created.
 - R5.2 Each order links to the matching object in the Stripe test Dashboard.
+- R5.3 An events page lists the webhook event log (R4.7), newest first. Each entry links to the event in the Stripe test Dashboard.
+- R5.4 The order detail view shows the events that affected that order, in the order they were received.
 
 ### R6 Refunds (Could)
 **User story:** As a learner, I want to refund a paid order so that I can see how refunds and their webhooks work.
@@ -100,17 +113,32 @@ Priority is **Must**, **Should** or **Could**.
   - `4000 0000 0000 9995`: declined for insufficient funds
   - `4000 0025 0000 3155`: requires 3D Secure
 - R8.3 `npm start` runs the app and `npm test` runs the test suite.
+- R8.4 The README explains how to exercise webhooks without clicking through a purchase: `stripe trigger <event>` and `stripe events resend <evt_id>` (to see duplicate handling). It also explains how to reset the database by deleting its file.
+
+### R9 Persistence (Must)
+**User story:** As a learner, I want orders and events to survive restarts so that the app behaves like a real integration.
+
+- R9.1 Orders and webhook events are stored in a SQLite file. Its path is configurable and defaults to `data/stripe-demo.db`, and it is git-ignored.
+- R9.2 On startup the server creates the database file and schema if they don't exist. Starting against an existing database keeps its data.
+- R9.3 A server restart loses no orders, event log entries or processed-event records.
+- R9.4 Amounts are stored as whole numbers of cents, and timestamps as UTC ISO-8601 strings.
 
 ## Non-functional requirements
 
-- **N1 Testability.** Stripe is reached through a single module that can be swapped out, so tests run without network access or real keys.
+- **N1 Testability.** Stripe API calls go through a single module that can be swapped out, so tests run without network access or real keys. The database path can be injected, so tests use an in-memory database or a temporary file.
 - **N2 Tests.** The automated tests cover at least:
   - Refusing to start with missing or live keys (R7)
   - Server-side price lookup and rejecting unknown products (R1.3, R2.5)
   - Creating Checkout Sessions and PaymentIntents with the right amount and metadata (R2.1, R2.2, R3.1)
-  - Webhook signature checks, with valid, invalid and missing signatures (R4.1)
-  - Every status change in R4.2, plus idempotency (R4.3) and unknown events and orders (R4.4)
-- **N3 Simplicity.** Keep dependencies to a minimum: `express`, `stripe` and `dotenv` at runtime, plus a test runner. Orders live in memory.
+- **N2a Webhook integration tests.** These send HTTP requests to the running Express app with payloads signed by the `stripe` library's real signing scheme and a test secret. Signature checks are not mocked. They cover:
+  - Valid, invalid, missing and expired signatures (R4.1)
+  - Every status change in R4.2, checked against the database
+  - Duplicate delivery, both within one run and after reopening the same database file (R4.3, R9.3)
+  - Out-of-order delivery (R4.6)
+  - Unknown orders and unhandled event types (R4.4)
+  - Event log entries and their outcomes (R4.7)
+  - Returning 5xx and not recording the event when processing fails (R4.9)
+- **N3 Simplicity.** Keep dependencies to a minimum: `express`, `stripe` and `dotenv` at runtime, plus a test runner. Use the built-in `node:sqlite` module, not a third-party database driver.
 - **N4 Logging.** The server logs each webhook event's type and ID and each order status change. It never logs secrets or client secrets.
 
 ## Acceptance criteria (end to end, done by hand)
@@ -122,3 +150,6 @@ Priority is **Must**, **Should** or **Could**.
 5. (If R6 is built) Refunding a paid order changes its status to `refunded` after the webhook arrives.
 6. Starting the server with an `sk_live_…` key fails with a clear error.
 7. `npm test` passes offline, with no Stripe keys set.
+8. After a paid purchase, restarting the server still shows the order as `paid` and its events on the events page.
+9. Running `stripe events resend <evt_id>` on an already-processed event adds an `ignored_duplicate` entry to the event log and leaves the order unchanged.
+10. `stripe trigger payment_intent.succeeded` shows up on the events page as `ignored_unknown_order`.
