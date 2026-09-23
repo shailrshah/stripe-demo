@@ -25,7 +25,7 @@ A small demo store for learning how Stripe payments work from start to finish. I
 
 ## Constraints
 
-- **C1 Local only.** The frontend and backend run on the loopback address `127.0.0.1`. The only outbound network traffic is to Stripe (the API, Stripe.js and hosted Checkout) and the Stripe CLI's webhook forwarding.
+- **C1 Local only.** The frontend and backend run on the loopback address `127.0.0.1`. The only outbound network traffic is to Stripe (the API, Stripe.js and hosted Checkout), the Stripe CLI's webhook forwarding, and product photos that the browser loads from Unsplash's image CDN (`images.unsplash.com`).
 - **C2 Test mode only.** The system accepts only Stripe test keys (`sk_test_…`, `pk_test_…`).
 - **C3 No card data on our server.** Card details are entered only into Stripe-hosted or Stripe-rendered fields. Our server never receives, logs or stores card numbers.
 - **C4 Secrets out of source control.** API keys and the webhook signing secret come from environment variables or a git-ignored `.env` file.
@@ -45,7 +45,7 @@ Priority is **Must**, **Should** or **Could**.
 ### R1 Product catalog (Must)
 **User story:** As a visitor, I want to see the products for sale so that I can pick one to buy.
 
-- R1.1 The home page lists every product with its name, description and price, formatted as dollars (for example `$12.00`).
+- R1.1 The home page lists every product with a photo, its name, description and price, formatted as dollars (for example `$12.00`). Photos are hotlinked stock images, not stored in the repo.
 - R1.2 Each product offers a "Buy with Checkout" action and a "Buy with embedded form" action.
 - R1.3 The product list is defined on the server. The client cannot change prices: the server looks up the amount by product ID and ignores any price sent from the browser.
 

@@ -7,6 +7,7 @@ const PRODUCT = {
   name: 'Rubber Duck',
   description: 'For debugging conversations.',
   amountCents: 500,
+  imageUrl: 'https://images.example.test/duck.jpg',
 };
 
 function fakeClient({

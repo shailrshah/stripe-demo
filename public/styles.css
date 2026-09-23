@@ -135,6 +135,18 @@ code {
   border-radius: var(--radius);
 }
 
+.card { overflow: hidden; }
+/* Bleed the photo to the card edges by cancelling the card's 20px padding. */
+.card-image {
+  display: block;
+  width: calc(100% + 40px);
+  height: auto;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  margin: -20px -20px 16px;
+  background: var(--border);
+}
+
 .card p { margin: 0; }
 .card .actions { margin-top: auto; padding-top: 16px; }
 

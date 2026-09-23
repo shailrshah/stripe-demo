@@ -6,7 +6,7 @@ export type Outcome =
   | 'applied' | 'ignored_duplicate' | 'ignored_transition'
   | 'ignored_unknown_order' | 'ignored_unhandled_type';
 
-export interface Product { id: string; name: string; description: string; amountCents: number }
+export interface Product { id: string; name: string; description: string; amountCents: number; imageUrl: string }
 
 export interface Order {
   id: string; productId: string; amountCents: number; currency: string;

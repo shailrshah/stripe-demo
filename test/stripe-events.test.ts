@@ -154,7 +154,7 @@ test('unhandled accepts a custom object', () => {
 
 test('fake gateway returns sequential IDs and records calls', async () => {
   const gw = createFakeGateway();
-  const product: Product = { id: 'duck', name: 'Duck', description: 'A duck', amountCents: 500 };
+  const product: Product = { id: 'duck', name: 'Duck', description: 'A duck', amountCents: 500, imageUrl: 'https://images.example.test/duck.jpg' };
   const s1 = await gw.createCheckoutSession({ orderId: 'ord_1', product, successUrl: 's', cancelUrl: 'c' });
   const s2 = await gw.createCheckoutSession({ orderId: 'ord_2', product, successUrl: 's', cancelUrl: 'c' });
   assert.deepEqual(s1, { id: 'cs_test_fake_1', url: 'https://checkout.stripe.test/c/pay/cs_test_fake_1' });
@@ -178,7 +178,7 @@ test('fake gateway returns sequential IDs and records calls', async () => {
 
 test('failNext rejects exactly once, only for that method', async () => {
   const gw = createFakeGateway();
-  const product: Product = { id: 'duck', name: 'Duck', description: 'A duck', amountCents: 500 };
+  const product: Product = { id: 'duck', name: 'Duck', description: 'A duck', amountCents: 500, imageUrl: 'https://images.example.test/duck.jpg' };
   gw.failNext('createPaymentIntent');
   assert.deepEqual(await gw.createRefund({ paymentIntentId: 'pi_1', orderId: 'ord_1' }), { id: 're_test_fake_1' });
   await assert.rejects(gw.createPaymentIntent({ orderId: 'ord_1', product }), { message: 'fake gateway failure' });

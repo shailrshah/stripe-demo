@@ -52,6 +52,14 @@ function productCard(product) {
   actions.className = 'actions';
   actions.append(form, embedded);
 
-  card.append(name, description, price, actions);
+  const image = document.createElement('img');
+  image.className = 'card-image';
+  image.src = product.imageUrl;
+  image.alt = product.name;
+  image.width = 600;
+  image.height = 400;
+  image.loading = 'lazy';
+
+  card.append(image, name, description, price, actions);
   return card;
 }

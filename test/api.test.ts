@@ -101,9 +101,9 @@ test('GET /api/products lists every catalog product with a formatted price', asy
   const { status, body } = await request<(Product & { price: string })[]>('GET', '/api/products');
   assert.equal(status, 200);
   assert.deepEqual(body, [
-    { id: 'duck', name: 'Rubber Duck', description: 'For debugging conversations.', amountCents: 500, price: '$5.00' },
-    { id: 'beans', name: 'Coffee Beans (1 lb)', description: 'Fuel for late-night deploys.', amountCents: 1250, price: '$12.50' },
-    { id: 'keyboard', name: 'Mechanical Keyboard', description: 'Clicky. Very clicky.', amountCents: 8900, price: '$89.00' },
+    { id: 'duck', name: 'Rubber Duck', description: 'For debugging conversations.', amountCents: 500, imageUrl: 'https://images.unsplash.com/photo-1616706723013-6033a1f6c008?w=600&h=400&fit=crop&q=70&auto=format', price: '$5.00' },
+    { id: 'beans', name: 'Coffee Beans (1 lb)', description: 'Fuel for late-night deploys.', amountCents: 1250, imageUrl: 'https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=600&h=400&fit=crop&q=70&auto=format', price: '$12.50' },
+    { id: 'keyboard', name: 'Mechanical Keyboard', description: 'Clicky. Very clicky.', amountCents: 8900, imageUrl: 'https://images.unsplash.com/photo-1562819606-b7a0ebd7e7c5?w=600&h=400&fit=crop&q=70&auto=format', price: '$89.00' },
   ]);
   assert.equal(body.length, PRODUCTS.length);
 });

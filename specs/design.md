@@ -127,6 +127,8 @@ export function formatPrice(cents)   // 1250 → "$12.50"
 
 Every price is at least $0.50, which is Stripe's minimum charge in USD. The currency is always `usd`.
 
+Each product also has an `imageUrl`: an Unsplash CDN link (free to use, no attribution required), cropped to 600×400 by its query string. It's hotlinked rather than downloaded, and `GET /api/products` passes it through to the shop page.
+
 ## 5. Data model (`src/db.js`)
 
 `openDb(path)` does the following:

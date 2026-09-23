@@ -48,3 +48,9 @@ test('the catalog cannot be changed at runtime', () => {
   assert.throws(() => { PRODUCTS[0] = { id: 'duck', amountCents: 1 }; }, TypeError);
   assert.equal(getProduct('duck')?.amountCents, 500);
 });
+
+test('every product has an https image URL', () => {
+  for (const product of PRODUCTS) {
+    assert.equal(new URL(product.imageUrl).protocol, 'https:', product.id);
+  }
+});
