@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
 import Stripe from 'stripe';
-import { createWebhookRouter } from '../src/routes/webhook.js';
-import { createWebhookVerifier } from '../src/webhook-verifier.js';
-import { paymentIntentSucceeded, sign } from './helpers/stripe-events.js';
+import { createWebhookRouter } from '../src/routes/webhook.ts';
+import { createWebhookVerifier } from '../src/webhook-verifier.ts';
+import { paymentIntentSucceeded, sign } from './helpers/stripe-events.ts';
 
 const SECRET = 'whsec_test_secret';
 const silentLogger = { info() {}, warn() {}, error() {} };

@@ -1,6 +1,6 @@
 import { describe, test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { startE2E } from './harness.js';
+import { startE2E } from './harness.ts';
 
 const TIMEOUT = 60_000;
 

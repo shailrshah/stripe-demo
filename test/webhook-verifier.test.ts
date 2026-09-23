@@ -5,7 +5,7 @@ import {
   createWebhookVerifier,
   WebhookSignatureError,
   WebhookNotConfiguredError,
-} from '../src/webhook-verifier.js';
+} from '../src/webhook-verifier.ts';
 
 const SECRET = 'whsec_test_secret';
 const EVENT = { id: 'evt_1', object: 'event', type: 'payment_intent.succeeded', data: { object: {} } };

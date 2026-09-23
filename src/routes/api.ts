@@ -1,5 +1,5 @@
 import express from 'express';
-import { PRODUCTS, getProduct, formatPrice } from '../catalog.js';
+import { PRODUCTS, getProduct, formatPrice } from '../catalog.ts';
 
 const DASHBOARD = 'https://dashboard.stripe.com/test';
 

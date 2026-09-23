@@ -5,10 +5,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startTestServer } from './helpers/test-server.js';
-import { paymentIntentSucceeded } from './helpers/stripe-events.js';
+import { startTestServer } from './helpers/test-server.ts';
+import { paymentIntentSucceeded } from './helpers/stripe-events.ts';
 
-const serverPath = fileURLToPath(new URL('../src/server.js', import.meta.url));
+const serverPath = fileURLToPath(new URL('../src/server.ts', import.meta.url));
 
 let srv;
 

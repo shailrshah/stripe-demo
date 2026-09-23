@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { startTestServer } from './helpers/test-server.js';
-import { paymentIntentSucceeded } from './helpers/stripe-events.js';
+import { startTestServer } from './helpers/test-server.ts';
+import { paymentIntentSucceeded } from './helpers/stripe-events.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'stripe-demo-persist-'));
 const databasePath = join(dir, 'data', 'stripe-demo.db');

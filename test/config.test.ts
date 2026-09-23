@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadConfig, ConfigError } from '../src/config.js';
+import { loadConfig, ConfigError } from '../src/config.ts';
 
 const VALID = {
   STRIPE_SECRET_KEY: 'sk_test_51SecretValueThatMustNeverLeak',

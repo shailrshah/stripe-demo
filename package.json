@@ -7,13 +7,19 @@
     "node": ">=24"
   },
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node src/server.ts",
     "test": "node --test",
-    "test:e2e": "node --test --test-concurrency=1 'e2e/**/*.e2e.js'"
+    "test:e2e": "node --test --test-concurrency=1 'e2e/**/*.e2e.ts'",
+    "typecheck": "tsc -p ."
   },
   "dependencies": {
     "dotenv": "^18.0.3",
     "express": "^5.2.1",
     "stripe": "^22.6.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.13.6",
+    "typescript": "^7.0.2"
   }
 }

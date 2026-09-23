@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStripeGateway } from '../src/stripe-gateway.js';
+import { createStripeGateway } from '../src/stripe-gateway.ts';
 
 const PRODUCT = {
   id: 'duck',

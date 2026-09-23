@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PRODUCTS, getProduct, formatPrice } from '../src/catalog.js';
+import { PRODUCTS, getProduct, formatPrice } from '../src/catalog.ts';
 
 test('getProduct returns the product for known IDs', () => {
   for (const p of PRODUCTS) {

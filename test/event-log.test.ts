@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { openDb } from '../src/db.js';
-import { createEventLog } from '../src/event-log.js';
+import { openDb } from '../src/db.ts';
+import { createEventLog } from '../src/event-log.ts';
 
 const NOW = '2026-01-01T00:00:00.000Z';
 

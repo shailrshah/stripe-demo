@@ -9,8 +9,8 @@ import {
   chargeRefunded,
   unhandled,
   sign,
-} from './helpers/stripe-events.js';
-import { createFakeGateway } from './helpers/fake-gateway.js';
+} from './helpers/stripe-events.ts';
+import { createFakeGateway } from './helpers/fake-gateway.ts';
 
 const SECRET = 'whsec_test_secret';
 

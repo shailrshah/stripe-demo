@@ -1,11 +1,11 @@
 import express from 'express';
 import { fileURLToPath } from 'node:url';
-import { createOrdersRepo } from './orders.js';
-import { createEventLog } from './event-log.js';
-import { createWebhookProcessor } from './webhook-processor.js';
-import { createWebhookRouter } from './routes/webhook.js';
-import { createCheckoutRouter } from './routes/checkout.js';
-import { createApiRouter } from './routes/api.js';
+import { createOrdersRepo } from './orders.ts';
+import { createEventLog } from './event-log.ts';
+import { createWebhookProcessor } from './webhook-processor.ts';
+import { createWebhookRouter } from './routes/webhook.ts';
+import { createCheckoutRouter } from './routes/checkout.ts';
+import { createApiRouter } from './routes/api.ts';
 
 const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
 

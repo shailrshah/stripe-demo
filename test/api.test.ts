@@ -1,13 +1,13 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import express from 'express';
-import { openDb } from '../src/db.js';
-import { createOrdersRepo } from '../src/orders.js';
-import { createEventLog } from '../src/event-log.js';
-import { PRODUCTS } from '../src/catalog.js';
-import { createApiRouter } from '../src/routes/api.js';
-import { createFakeGateway } from './helpers/fake-gateway.js';
-import { paymentIntentSucceeded, checkoutSessionCompleted } from './helpers/stripe-events.js';
+import { openDb } from '../src/db.ts';
+import { createOrdersRepo } from '../src/orders.ts';
+import { createEventLog } from '../src/event-log.ts';
+import { PRODUCTS } from '../src/catalog.ts';
+import { createApiRouter } from '../src/routes/api.ts';
+import { createFakeGateway } from './helpers/fake-gateway.ts';
+import { paymentIntentSucceeded, checkoutSessionCompleted } from './helpers/stripe-events.ts';
 
 const DASHBOARD = 'https://dashboard.stripe.com/test';
 

@@ -1,9 +1,9 @@
 import 'dotenv/config';
-import { ConfigError, loadConfig } from './config.js';
-import { openDb } from './db.js';
-import { createStripeGateway } from './stripe-gateway.js';
-import { createWebhookVerifier } from './webhook-verifier.js';
-import { createApp } from './app.js';
+import { ConfigError, loadConfig } from './config.ts';
+import { openDb } from './db.ts';
+import { createStripeGateway } from './stripe-gateway.ts';
+import { createWebhookVerifier } from './webhook-verifier.ts';
+import { createApp } from './app.ts';
 
 let config;
 try {

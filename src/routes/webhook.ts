@@ -1,5 +1,5 @@
 import express from 'express';
-import { WebhookNotConfiguredError, WebhookSignatureError } from '../webhook-verifier.js';
+import { WebhookNotConfiguredError, WebhookSignatureError } from '../webhook-verifier.ts';
 
 export function createWebhookRouter({ verifier, processor, logger }) {
   const router = express.Router();

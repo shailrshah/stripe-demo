@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { openDb } from '../src/db.js';
-import { createOrdersRepo } from '../src/orders.js';
-import { createEventLog } from '../src/event-log.js';
-import { createWebhookProcessor } from '../src/webhook-processor.js';
+import { openDb } from '../src/db.ts';
+import { createOrdersRepo } from '../src/orders.ts';
+import { createEventLog } from '../src/event-log.ts';
+import { createWebhookProcessor } from '../src/webhook-processor.ts';
 import {
   checkoutSessionCompleted,
   checkoutSessionExpired,
@@ -11,7 +11,7 @@ import {
   paymentIntentFailed,
   chargeRefunded,
   unhandled,
-} from './helpers/stripe-events.js';
+} from './helpers/stripe-events.ts';
 
 const silentLogger = { info() {}, warn() {}, error() {} };
 

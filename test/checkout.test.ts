@@ -4,10 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import express from 'express';
-import { openDb } from '../src/db.js';
-import { createOrdersRepo } from '../src/orders.js';
-import { createFakeGateway } from './helpers/fake-gateway.js';
-import { createCheckoutRouter } from '../src/routes/checkout.js';
+import { openDb } from '../src/db.ts';
+import { createOrdersRepo } from '../src/orders.ts';
+import { createFakeGateway } from './helpers/fake-gateway.ts';
+import { createCheckoutRouter } from '../src/routes/checkout.ts';
 
 const BASE_URL = 'http://127.0.0.1:3000';
 const CANCEL_STUB = '<!doctype html><title>stub cancel</title>';

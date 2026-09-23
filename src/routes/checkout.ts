@@ -1,5 +1,5 @@
 import express from 'express';
-import { getProduct } from '../catalog.js';
+import { getProduct } from '../catalog.ts';
 
 export function createCheckoutRouter({ config, orders, gateway, logger, publicDir }) {
   const router = express.Router();

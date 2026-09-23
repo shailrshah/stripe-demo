@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { openDb } from '../src/db.js';
-import { createOrdersRepo } from '../src/orders.js';
+import { openDb } from '../src/db.ts';
+import { createOrdersRepo } from '../src/orders.ts';
 
 function setup(start = '2026-01-01T00:00:00.000Z') {
   const clock = { ms: Date.parse(start) };

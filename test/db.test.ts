@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openDb } from '../src/db.js';
+import { openDb } from '../src/db.ts';
 
 const tempRoot = mkdtempSync(join(tmpdir(), 'stripe-demo-db-'));
 after(() => rmSync(tempRoot, { recursive: true, force: true }));

@@ -5,11 +5,11 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
-import { loadConfig } from '../src/config.js';
-import { openDb } from '../src/db.js';
-import { createStripeGateway } from '../src/stripe-gateway.js';
-import { createWebhookVerifier } from '../src/webhook-verifier.js';
-import { createApp } from '../src/app.js';
+import { loadConfig } from '../src/config.ts';
+import { openDb } from '../src/db.ts';
+import { createStripeGateway } from '../src/stripe-gateway.ts';
+import { createWebhookVerifier } from '../src/webhook-verifier.ts';
+import { createApp } from '../src/app.ts';
 
 const envPath = fileURLToPath(new URL('../.env', import.meta.url));
 

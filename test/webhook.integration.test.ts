@@ -1,6 +1,6 @@
 import { describe, test, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { startTestServer } from './helpers/test-server.js';
+import { startTestServer } from './helpers/test-server.ts';
 import {
   checkoutSessionCompleted,
   checkoutSessionExpired,
@@ -9,7 +9,7 @@ import {
   chargeRefunded,
   unhandled,
   sign,
-} from './helpers/stripe-events.js';
+} from './helpers/stripe-events.ts';
 
 async function createEmbeddedOrder(srv) {
   const res = await fetch(`${srv.url}/api/payment-intents`, {

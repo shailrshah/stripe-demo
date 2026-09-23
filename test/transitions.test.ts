@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { HANDLED_TYPES, canTransition, eventTarget } from '../src/transitions.js';
+import { HANDLED_TYPES, canTransition, eventTarget } from '../src/transitions.ts';
 
 const STATUSES = ['pending', 'paid', 'failed', 'canceled', 'refunded'];
 const ALLOWED_PAIRS = new Set([

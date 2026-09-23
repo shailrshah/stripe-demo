@@ -1,4 +1,4 @@
-import { HANDLED_TYPES, canTransition, eventTarget } from './transitions.js';
+import { HANDLED_TYPES, canTransition, eventTarget } from './transitions.ts';
 
 export function createWebhookProcessor({ db, orders, eventLog, logger }) {
   function resolveOrder(object) {

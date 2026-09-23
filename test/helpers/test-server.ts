@@ -1,9 +1,9 @@
-import { loadConfig } from '../../src/config.js';
-import { openDb } from '../../src/db.js';
-import { createWebhookVerifier } from '../../src/webhook-verifier.js';
-import { createApp } from '../../src/app.js';
-import { createFakeGateway } from './fake-gateway.js';
-import { sign } from './stripe-events.js';
+import { loadConfig } from '../../src/config.ts';
+import { openDb } from '../../src/db.ts';
+import { createWebhookVerifier } from '../../src/webhook-verifier.ts';
+import { createApp } from '../../src/app.ts';
+import { createFakeGateway } from './fake-gateway.ts';
+import { sign } from './stripe-events.ts';
 
 export const silentLogger = { info() {}, warn() {}, error() {} };
 
