@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node src/server.ts",
-    "test": "node --test",
+    "test": "npm run typecheck && node --test",
     "test:e2e": "node --test --test-concurrency=1 'e2e/**/*.e2e.ts'",
     "typecheck": "tsc -p ."
   },

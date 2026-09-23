@@ -95,12 +95,10 @@ export async function startE2E(): Promise<E2E> {
     throw new E2ESetupError('Could not get a webhook secret from `stripe listen --print-secret`. Run `stripe login` first.');
   }
 
+  // Validate keys before creating the temp dir so a config error can't leak it.
+  const validated = loadConfig({ ...loadKeys(), STRIPE_WEBHOOK_SECRET: secret });
   const dir = mkdtempSync(join(tmpdir(), 'stripe-demo-e2e-'));
-  const config = loadConfig({
-    ...loadKeys(),
-    STRIPE_WEBHOOK_SECRET: secret,
-    DATABASE_PATH: join(dir, 'e2e.db'),
-  });
+  const config = { ...validated, databasePath: join(dir, 'e2e.db') };
 
   const logs: string[] = [];
   const record = (...args: unknown[]) => logs.push(args.map(String).join(' '));

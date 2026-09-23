@@ -124,10 +124,11 @@ test('POST /api/payment-intents uses the catalog amount and returns only orderId
 
   const newCalls = gateway.calls.slice(callsBefore);
   assert.equal(newCalls.length, 1);
-  assert.equal(newCalls[0].method, 'createPaymentIntent');
-  assert.equal(newCalls[0].args.orderId, body.orderId);
-  assert.equal(newCalls[0].args.product.id, 'keyboard');
-  assert.equal(newCalls[0].args.product.amountCents, 8900);
+  const [call] = newCalls;
+  assert.ok(call.method === 'createPaymentIntent');
+  assert.equal(call.args.orderId, body.orderId);
+  assert.equal(call.args.product.id, 'keyboard');
+  assert.equal(call.args.product.amountCents, 8900);
 
   const order = orders.get(body.orderId);
   assert.ok(order);
@@ -278,7 +279,7 @@ test('GET /api/events lists the event log newest first with Dashboard links', as
   const older = checkoutSessionCompleted({ orderId: order.id, sessionId: order.stripeCheckoutSessionId });
   const newer = paymentIntentSucceeded();
   eventLog.append({ event: older, orderId: order.id, outcome: 'applied' });
-  eventLog.append({ event: newer, outcome: 'ignored_unknown_order' });
+  eventLog.append({ event: newer, orderId: null, outcome: 'ignored_unknown_order' });
 
   const { status, body } = await request<ApiEvent[]>('GET', '/api/events');
   assert.equal(status, 200);

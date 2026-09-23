@@ -6,7 +6,7 @@ A tiny shop for learning how Stripe payments work from start to finish: creating
 - **Test mode only.** The server refuses to start unless the keys are `sk_test_…` and `pk_test_…`. Live keys (`sk_live_…`) are rejected with an error.
 - **No real money.** Test mode uses Stripe's test cards. Real card numbers are never accepted.
 
-Stack: Node 24, Express, SQLite through the built-in `node:sqlite` module, and plain HTML/JS pages with no build step.
+Stack: Node 24, Express, SQLite through the built-in `node:sqlite` module, and plain HTML/JS pages. The server, tests and e2e suite are TypeScript, which Node 24 runs directly by stripping the types. There's no build step: `tsc` only type-checks.
 
 ## Prerequisites
 
@@ -151,7 +151,11 @@ The schema is recreated on the next start. There is no migration tooling, so thi
 npm test
 ```
 
-The tests use Node's built-in test runner. They run offline and need no Stripe keys or `.env`: Stripe API calls go through a fake gateway, and webhook tests sign payloads with a test secret using Stripe's real signing scheme.
+`npm test` first type-checks the whole project in strict mode (`npm run typecheck`, which runs `tsc -p .`), then runs the tests with Node's built-in test runner. A type error fails it.
+
+The tests run offline and need no Stripe keys or `.env`: Stripe API calls go through a fake gateway, and webhook tests sign payloads with a test secret using Stripe's real signing scheme.
+
+**TypeScript rules:** Node can only run TypeScript whose types it can simply delete. `tsconfig.json` sets `erasableSyntaxOnly`, which rejects `enum`, `namespace` and constructor parameter properties. Use union types instead. Relative imports use `.ts` extensions. Shared types live in `src/types.ts`, and Stripe objects use the `stripe` package's own types (`Stripe.Event`, `Stripe.Checkout.Session`, …).
 
 ### End-to-end tests (opt-in)
 
@@ -186,10 +190,11 @@ Completing hosted Checkout and the 3D Secure challenge need a browser, so those 
 ## Project layout
 
 ```
-src/        Express server: config, catalog, SQLite repositories, Stripe gateway,
-            webhook verifier and processor, routes
-public/     Static pages: shop, embedded payment, success, cancel, orders, events
-test/       Unit and HTTP integration tests, plus helpers
+src/        Express server (TypeScript): config, catalog, SQLite repositories, Stripe
+            gateway, webhook verifier and processor, routes; shared types in types.ts
+public/     Static pages (JavaScript): shop, embedded payment, success, cancel, orders, events
+test/       Unit and HTTP integration tests, plus helpers (TypeScript)
+e2e/        Opt-in end-to-end tests against Stripe test mode (TypeScript)
 specs/      requirements.md, design.md, tasks.md
 ```
 

@@ -1,7 +1,9 @@
 import type { Gateway } from '../../src/types.ts';
 
 export type GatewayMethod = keyof Gateway;
-export interface FakeGatewayCall { method: GatewayMethod; args: unknown }
+// A union keyed by method, so checking `call.method` narrows `call.args` to that method's argument.
+export type FakeGatewayCall = { [M in GatewayMethod]: { method: M; args: Parameters<Gateway[M]>[0] } }[GatewayMethod];
+export type FakeGatewayCallOf<M extends GatewayMethod> = Extract<FakeGatewayCall, { method: M }>;
 export type FakeGateway = Gateway & { calls: FakeGatewayCall[]; failNext(method: GatewayMethod): void };
 
 export function createFakeGateway(): FakeGateway {
@@ -9,8 +11,8 @@ export function createFakeGateway(): FakeGateway {
   const failing = new Set<GatewayMethod>();
   const seq: Partial<Record<GatewayMethod, number>> = {};
 
-  function record(method: GatewayMethod, args: unknown): number {
-    calls.push({ method, args });
+  function record<M extends GatewayMethod>(method: M, args: Parameters<Gateway[M]>[0]): number {
+    calls.push({ method, args } as FakeGatewayCall);
     if (failing.delete(method)) throw new Error('fake gateway failure');
     const n = (seq[method] ?? 0) + 1;
     seq[method] = n;

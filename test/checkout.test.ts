@@ -8,7 +8,7 @@ import express from 'express';
 import type { Server } from 'node:http';
 import { openDb } from '../src/db.ts';
 import { createOrdersRepo } from '../src/orders.ts';
-import { createFakeGateway } from './helpers/fake-gateway.ts';
+import { createFakeGateway, type FakeGatewayCallOf, type GatewayMethod } from './helpers/fake-gateway.ts';
 import { createCheckoutRouter } from '../src/routes/checkout.ts';
 import type { Config, Logger } from '../src/types.ts';
 
@@ -61,7 +61,8 @@ async function setup(t: TestContext) {
     assert.ok(typeof row?.id === 'string');
     return row.id;
   };
-  const callsTo = (method: string) => gateway.calls.filter((c) => c.method === method);
+  const callsTo = <M extends GatewayMethod>(method: M) =>
+    gateway.calls.filter((c): c is FakeGatewayCallOf<M> => c.method === method);
 
   return { orders, gateway, postCheckout, getCancel, orderCount, onlyOrderId, callsTo };
 }

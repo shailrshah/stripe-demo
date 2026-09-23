@@ -42,27 +42,29 @@ Key decisions:
 
 ```
 stripe-demo/
-├── package.json            # "type":"module"; scripts: start, test
+├── package.json            # "type":"module"; scripts: start, test, typecheck, test:e2e
 ├── .env.example
+├── tsconfig.json           # type-check only (noEmit); see §17
 ├── .gitignore              # node_modules, .env, data/
 ├── README.md
 ├── specs/
 ├── src/
-│   ├── server.js           # entry point: wires everything and listens
-│   ├── config.js           # loadConfig(env)
-│   ├── catalog.js          # PRODUCTS, getProduct, formatPrice
-│   ├── db.js               # openDb(path): opens the DB and applies the schema
-│   ├── orders.js           # createOrdersRepo(db)
-│   ├── event-log.js        # createEventLog(db)
-│   ├── transitions.js      # canTransition, eventTarget
-│   ├── webhook-processor.js# createWebhookProcessor({ db, orders, eventLog, logger })
-│   ├── webhook-verifier.js # createWebhookVerifier(secret)
-│   ├── stripe-gateway.js   # createStripeGateway(secretKey)
-│   ├── app.js              # createApp(deps): express app, mounts routes
+│   ├── server.ts           # entry point: wires everything and listens
+│   ├── types.ts            # shared types only (§17)
+│   ├── config.ts           # loadConfig(env)
+│   ├── catalog.ts          # PRODUCTS, getProduct, formatPrice
+│   ├── db.ts               # openDb(path): opens the DB and applies the schema
+│   ├── orders.ts           # createOrdersRepo(db)
+│   ├── event-log.ts        # createEventLog(db)
+│   ├── transitions.ts      # canTransition, eventTarget
+│   ├── webhook-processor.ts# createWebhookProcessor({ db, orders, eventLog, logger })
+│   ├── webhook-verifier.ts # createWebhookVerifier(secret)
+│   ├── stripe-gateway.ts   # createStripeGateway(secretKey)
+│   ├── app.ts              # createApp(deps): express app, mounts routes
 │   └── routes/
-│       ├── api.js          # products, config, payment-intents, orders, refunds, events
-│       ├── checkout.js     # POST /checkout, GET /cancel
-│       └── webhook.js      # POST /webhook
+│       ├── api.ts          # products, config, payment-intents, orders, refunds, events
+│       ├── checkout.ts     # POST /checkout, GET /cancel
+│       └── webhook.ts      # POST /webhook
 ├── public/
 │   ├── styles.css
 │   ├── common.js           # fetchJson, statusBadge, outcomeBadge
@@ -75,25 +77,25 @@ stripe-demo/
 │   └── events.html + events.js   # event log (R5.3)
 └── test/
     ├── helpers/
-    │   ├── fake-gateway.js     # records calls, returns canned ids
-    │   ├── stripe-events.js    # event fixture builders + real signing
-    │   └── test-server.js      # startTestServer(overrides) → { url, db, gateway, close }
-    ├── config.test.js
-    ├── catalog.test.js
-    ├── db.test.js
-    ├── orders.test.js
-    ├── event-log.test.js
-    ├── transitions.test.js
-    ├── stripe-gateway.test.js
-    ├── webhook-verifier.test.js
-    ├── stripe-events.test.js
-    ├── webhook-processor.test.js
-    ├── api.test.js
-    ├── checkout.test.js
-    ├── webhook-router.test.js
-    ├── app.test.js
-    ├── webhook.integration.test.js
-    └── persistence.integration.test.js
+    │   ├── fake-gateway.ts     # records calls, returns canned ids
+    │   ├── stripe-events.ts    # event fixture builders + real signing
+    │   └── test-server.ts      # startTestServer(overrides) → { url, db, gateway, close }
+    ├── config.test.ts
+    ├── catalog.test.ts
+    ├── db.test.ts
+    ├── orders.test.ts
+    ├── event-log.test.ts
+    ├── transitions.test.ts
+    ├── stripe-gateway.test.ts
+    ├── webhook-verifier.test.ts
+    ├── stripe-events.test.ts
+    ├── webhook-processor.test.ts
+    ├── api.test.ts
+    ├── checkout.test.ts
+    ├── webhook-router.test.ts
+    ├── app.test.ts
+    ├── webhook.integration.test.ts
+    └── persistence.integration.test.ts
 ```
 
 ## 3. Configuration (`src/config.js`)
