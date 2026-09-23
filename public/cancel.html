@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment canceled · Stripe Demo</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">Stripe Demo</a>
+    <nav class="nav">
+      <a href="/">Shop</a>
+      <a href="/orders.html">Orders</a>
+      <a href="/events.html">Events</a>
+    </nav>
+  </header>
+  <main>
+    <h1>Payment canceled</h1>
+    <p>You left Stripe Checkout before paying, so you haven't been charged.</p>
+    <p class="muted">The order stays <span class="badge badge-pending">pending</span> until Stripe expires the Checkout Session. When the <code>checkout.session.expired</code> webhook arrives, it becomes <span class="badge badge-canceled">canceled</span>.</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="/">Back to the shop</a>
+      <a class="btn" href="/orders.html">View orders</a>
+    </div>
+  </main>
+</body>
+</html>
