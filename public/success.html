@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Payment result · Stripe Demo Shop</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <nav>
+    <a href="/">Shop</a> ·
+    <a href="/orders.html">Orders</a> ·
+    <a href="/events.html">Events</a>
+  </nav>
+
+  <main>
+    <h1>Thanks for your order</h1>
+
+    <p id="message">Loading order…</p>
+
+    <dl id="order" hidden>
+      <dt>Order ID</dt>
+      <dd id="order-id"></dd>
+      <dt>Product</dt>
+      <dd id="product"></dd>
+      <dt>Price</dt>
+      <dd id="price"></dd>
+      <dt>Status</dt>
+      <dd id="status"></dd>
+    </dl>
+
+    <p id="hint" hidden>
+      Still <strong>pending</strong> after 30 seconds. Check that
+      <code>stripe listen --forward-to 127.0.0.1:3000/webhook</code> is running
+      and that <code>STRIPE_WEBHOOK_SECRET</code> in <code>.env</code> matches the
+      signing secret it prints, then reload this page.
+    </p>
+
+    <p><a id="detail-link" href="/orders.html" hidden>View order details and its webhook events</a></p>
+
+    <aside>
+      <h2>Why might this say “pending”?</h2>
+      <p>
+        Being redirected here doesn't prove the payment succeeded: anyone can open this URL.
+        The order's status changes only when the server receives a signed Stripe webhook
+        (for example <code>checkout.session.completed</code> or
+        <code>payment_intent.succeeded</code>). This page just shows the latest status,
+        checking once a second for up to 30 seconds while it's still pending.
+      </p>
+    </aside>
+  </main>
+
+  <script type="module" src="/success.js"></script>
+</body>
+</html>
