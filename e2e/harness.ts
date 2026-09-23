@@ -1,8 +1,11 @@
 import { spawn, spawnSync } from 'node:child_process';
+import type { ChildProcess, SpawnSyncReturns } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { AddressInfo } from 'node:net';
+import type { DatabaseSync } from 'node:sqlite';
 import dotenv from 'dotenv';
 import Stripe from 'stripe';
 import { loadConfig } from '../src/config.ts';
@@ -10,11 +13,31 @@ import { openDb } from '../src/db.ts';
 import { createStripeGateway } from '../src/stripe-gateway.ts';
 import { createWebhookVerifier } from '../src/webhook-verifier.ts';
 import { createApp } from '../src/app.ts';
+import type { Logger } from '../src/types.ts';
+
+export interface ApiResponse {
+  status: number;
+  headers: Headers;
+  body: unknown;
+}
+
+type Pending = false | undefined | null;
+
+export interface E2E {
+  url: string;
+  db: DatabaseSync;
+  stripe: Stripe;
+  api(method: string, path: string, body?: Record<string, string>, opts?: { form?: boolean }): Promise<ApiResponse>;
+  waitFor<T>(fn: () => Promise<T | Pending> | T | Pending, opts: { what: string; timeout?: number }): Promise<T>;
+  stripeCli(...args: string[]): SpawnSyncReturns<string>;
+  logs: string[];
+  stop(): Promise<void>;
+}
 
 const envPath = fileURLToPath(new URL('../.env', import.meta.url));
 
 class E2ESetupError extends Error {
-  constructor(message) {
+  constructor(message: string) {
     super(message);
     this.name = 'E2ESetupError';
   }
@@ -22,14 +45,14 @@ class E2ESetupError extends Error {
 
 function loadKeys() {
   // Parse into a throwaway object so .env can't leak into process.env or supply a webhook secret.
-  const parsed = {};
+  const parsed: Record<string, string | undefined> = {};
   dotenv.config({ path: envPath, processEnv: parsed, quiet: true });
   return { STRIPE_SECRET_KEY: parsed.STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY: parsed.STRIPE_PUBLISHABLE_KEY };
 }
 
-function runCli(args, { allowFailure = false } = {}) {
+function runCli(args: string[], { allowFailure = false }: { allowFailure?: boolean } = {}): SpawnSyncReturns<string> {
   const result = spawnSync('stripe', args, { encoding: 'utf8', timeout: 60_000 });
-  if (result.error?.code === 'ENOENT') {
+  if ((result.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
     throw new E2ESetupError('Stripe CLI not found. Install it with: brew install stripe/stripe-cli/stripe');
   }
   if (!allowFailure && (result.error || result.status !== 0)) {
@@ -38,7 +61,7 @@ function runCli(args, { allowFailure = false } = {}) {
   return result;
 }
 
-function startListener(port) {
+function startListener(port: number): Promise<ChildProcess> {
   const child = spawn('stripe', ['listen', '--all-snapshot', '--forward-to', `127.0.0.1:${port}/webhook`], {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -48,7 +71,7 @@ function startListener(port) {
       child.kill();
       reject(new E2ESetupError('stripe listen did not become ready within 30s. Is the CLI logged in (stripe login)?'));
     }, 30_000);
-    const onData = (chunk) => {
+    const onData = (chunk: Buffer) => {
       output += chunk;
       if (output.includes('Ready!')) {
         clearTimeout(timer);
@@ -64,7 +87,7 @@ function startListener(port) {
   });
 }
 
-export async function startE2E() {
+export async function startE2E(): Promise<E2E> {
   runCli(['version']);
 
   const secret = runCli(['listen', '--print-secret'], { allowFailure: true }).stdout.trim();
@@ -79,9 +102,9 @@ export async function startE2E() {
     DATABASE_PATH: join(dir, 'e2e.db'),
   });
 
-  const logs = [];
-  const record = (...args) => logs.push(args.map(String).join(' '));
-  const logger = { info: record, warn: record, error: record };
+  const logs: string[] = [];
+  const record = (...args: unknown[]) => logs.push(args.map(String).join(' '));
+  const logger: Logger = { info: record, warn: record, error: record };
 
   const db = openDb(config.databasePath);
   const app = createApp({
@@ -93,11 +116,13 @@ export async function startE2E() {
   });
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
-  const url = `http://127.0.0.1:${server.address().port}`;
+  // Listening on a TCP host/port, so address() is always an AddressInfo here.
+  const { port } = server.address() as AddressInfo;
+  const url = `http://127.0.0.1:${port}`;
 
-  let listener;
+  let listener: ChildProcess;
   try {
-    listener = await startListener(server.address().port);
+    listener = await startListener(port);
   } catch (err) {
     server.close();
     db.close();
@@ -105,22 +130,31 @@ export async function startE2E() {
     throw err;
   }
 
-  async function api(method, path, body, { form = false } = {}) {
-    const init = { method, redirect: 'manual', headers: {} };
+  async function api(
+    method: string,
+    path: string,
+    body?: Record<string, string>,
+    { form = false }: { form?: boolean } = {},
+  ): Promise<ApiResponse> {
+    const headers: Record<string, string> = {};
+    const init: RequestInit = { method, redirect: 'manual', headers };
     if (body !== undefined) {
-      init.headers['content-type'] = form ? 'application/x-www-form-urlencoded' : 'application/json';
+      headers['content-type'] = form ? 'application/x-www-form-urlencoded' : 'application/json';
       init.body = form ? new URLSearchParams(body).toString() : JSON.stringify(body);
     }
     const res = await fetch(`${url}${path}`, init);
     const text = await res.text();
-    let parsed = text;
+    let parsed: unknown = text;
     try {
       parsed = JSON.parse(text);
     } catch {}
     return { status: res.status, headers: res.headers, body: parsed };
   }
 
-  async function waitFor(fn, { what, timeout = 30_000 } = {}) {
+  async function waitFor<T>(
+    fn: () => Promise<T | Pending> | T | Pending,
+    { what, timeout = 30_000 }: { what: string; timeout?: number },
+  ): Promise<T> {
     const deadline = Date.now() + timeout;
     for (;;) {
       const value = await fn();
@@ -150,7 +184,7 @@ export async function startE2E() {
     stripe: new Stripe(config.stripeSecretKey),
     api,
     waitFor,
-    stripeCli: (...args) => runCli(args),
+    stripeCli: (...args: string[]) => runCli(args),
     logs,
     stop,
   };

@@ -1,12 +1,19 @@
 import { describe, test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startE2E } from './harness.ts';
+import type { E2E } from './harness.ts';
+import type { EventLogRow, Order, OrderStatus } from '../src/types.ts';
+
+interface OrderDetail {
+  order: Order;
+  events: EventLogRow[];
+}
 
 const TIMEOUT = 60_000;
 
 describe('end-to-end against Stripe test mode', { concurrency: false }, () => {
-  let e2e;
-  let paidOrderId;
+  let e2e: E2E;
+  let paidOrderId: string | undefined;
 
   before(async () => {
     e2e = await startE2E();
@@ -16,9 +23,9 @@ describe('end-to-end against Stripe test mode', { concurrency: false }, () => {
     await e2e?.stop();
   });
 
-  const getOrder = async (orderId) => (await e2e.api('GET', `/api/orders/${orderId}`)).body;
+  const getOrder = async (orderId: string) => (await e2e.api('GET', `/api/orders/${orderId}`)).body as OrderDetail;
 
-  const waitForStatus = (orderId, status) =>
+  const waitForStatus = (orderId: string, status: OrderStatus) =>
     e2e.waitFor(
       async () => {
         const detail = await getOrder(orderId);
@@ -30,17 +37,19 @@ describe('end-to-end against Stripe test mode', { concurrency: false }, () => {
   async function createEmbeddedOrder() {
     const res = await e2e.api('POST', '/api/payment-intents', { productId: 'duck' });
     assert.equal(res.status, 201);
-    const detail = await getOrder(res.body.orderId);
-    return { orderId: res.body.orderId, paymentIntentId: detail.order.stripePaymentIntentId };
+    const { orderId } = res.body as { orderId: string };
+    const paymentIntentId = (await getOrder(orderId)).order.stripePaymentIntentId;
+    assert.ok(paymentIntentId, 'embedded order has no PaymentIntent id');
+    return { orderId, paymentIntentId };
   }
 
-  const confirm = (paymentIntentId, paymentMethod) =>
+  const confirm = (paymentIntentId: string, paymentMethod: string) =>
     e2e.stripe.paymentIntents.confirm(paymentIntentId, {
       payment_method: paymentMethod,
       return_url: `${e2e.url}/success.html`,
     });
 
-  const applied = (detail, type) => detail.events.filter((ev) => ev.type === type && ev.outcome === 'applied');
+  const applied = (detail: OrderDetail, type: string) => detail.events.filter((ev) => ev.type === type && ev.outcome === 'applied');
 
   test('embedded payment succeeds and is marked paid by webhook', { timeout: TIMEOUT }, async () => {
     const { orderId, paymentIntentId } = await createEmbeddedOrder();
@@ -56,7 +65,8 @@ describe('end-to-end against Stripe test mode', { concurrency: false }, () => {
   test('a declined card fails the order and a retry pays it', { timeout: TIMEOUT }, async () => {
     const { orderId, paymentIntentId } = await createEmbeddedOrder();
 
-    await assert.rejects(confirm(paymentIntentId, 'pm_card_chargeDeclinedInsufficientFunds'), (err) => {
+    await assert.rejects(confirm(paymentIntentId, 'pm_card_chargeDeclinedInsufficientFunds'), (err: unknown) => {
+      assert.ok(err instanceof Error && 'code' in err && 'decline_code' in err, `unexpected error: ${err}`);
       assert.equal(err.code, 'card_declined');
       assert.equal(err.decline_code, 'insufficient_funds');
       return true;
@@ -83,9 +93,9 @@ describe('end-to-end against Stripe test mode', { concurrency: false }, () => {
   test('cancelling Checkout expires the session and cancels the order', { timeout: TIMEOUT }, async () => {
     const res = await e2e.api('POST', '/checkout', { productId: 'beans' }, { form: true });
     assert.equal(res.status, 303);
-    assert.match(res.headers.get('location'), /^https:\/\/checkout\.stripe\.com\//);
+    assert.match(res.headers.get('location') ?? '', /^https:\/\/checkout\.stripe\.com\//);
 
-    const orders = (await e2e.api('GET', '/api/orders')).body;
+    const orders = (await e2e.api('GET', '/api/orders')).body as Order[];
     const order = orders.find((o) => o.method === 'checkout' && o.status === 'pending');
     assert.ok(order, 'checkout order not found');
 
@@ -97,14 +107,16 @@ describe('end-to-end against Stripe test mode', { concurrency: false }, () => {
   });
 
   test('a real resend of a processed event is ignored as a duplicate', { timeout: TIMEOUT }, async () => {
-    assert.ok(paidOrderId, 'depends on the embedded payment test');
-    const [original] = applied(await getOrder(paidOrderId), 'payment_intent.succeeded');
+    // A const keeps the narrowing inside the waitFor closure below.
+    const orderId = paidOrderId;
+    assert.ok(orderId, 'depends on the embedded payment test');
+    const [original] = applied(await getOrder(orderId), 'payment_intent.succeeded');
 
     e2e.stripeCli('events', 'resend', original.stripeEventId, '--confirm');
 
     const detail = await e2e.waitFor(
       async () => {
-        const d = await getOrder(paidOrderId);
+        const d = await getOrder(orderId);
         return d.events.some((ev) => ev.stripeEventId === original.stripeEventId && ev.outcome === 'ignored_duplicate') && d;
       },
       { what: `resent ${original.stripeEventId} to be logged as a duplicate` },
@@ -118,7 +130,7 @@ describe('end-to-end against Stripe test mode', { concurrency: false }, () => {
 
     await e2e.waitFor(
       async () => {
-        const events = (await e2e.api('GET', '/api/events')).body;
+        const events = (await e2e.api('GET', '/api/events')).body as EventLogRow[];
         return events.some(
           (ev) =>
             ev.type === 'payment_intent.succeeded' &&
