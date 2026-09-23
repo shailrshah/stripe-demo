@@ -98,7 +98,7 @@ stripe-demo/
     └── persistence.integration.test.ts
 ```
 
-## 3. Configuration (`src/config.js`)
+## 3. Configuration (`src/config.ts`)
 
 `loadConfig(env = process.env)` returns a frozen object or throws `ConfigError`. `server.js` imports `dotenv/config` before calling it; tests pass a plain object instead.
 
@@ -113,7 +113,7 @@ stripe-demo/
 
 On `ConfigError`, `server.js` prints the message and runs `process.exit(1)`. Secret values never appear in the message; the key's prefix is enough to explain a failure (N4).
 
-## 4. Catalog (`src/catalog.js`)
+## 4. Catalog (`src/catalog.ts`)
 
 ```js
 export const PRODUCTS = [
@@ -129,7 +129,28 @@ Every price is at least $0.50, which is Stripe's minimum charge in USD. The curr
 
 Each product also has an `imageUrl`: an Unsplash CDN link (free to use, no attribution required), cropped to 600×400 by its query string. It's hotlinked rather than downloaded, and `GET /api/products` passes it through to the shop page.
 
-## 5. Data model (`src/db.js`)
+### Donations (R10)
+A donation isn't in `PRODUCTS`, so it isn't listed on the shop, and `getProduct('donation')` stays `undefined`. `catalog.ts` adds:
+
+```ts
+export const DONATION_ID = 'donation';
+export const DONATION_MIN_CENTS = 100;       // $1.00
+export const DONATION_MAX_CENTS = 100_000;   // $1,000.00
+export function parseDollars(input: unknown): number | null
+export function resolveItem(body: { productId?: unknown; amount?: unknown }):
+  { item: Product } | { error: string }
+export function itemName(productId: string): string | null
+```
+
+- **`parseDollars`** accepts only a string matching `^\d{1,7}(\.\d{1,2})?$` and converts it to integer cents using string arithmetic, not floats. Anything else returns `null`.
+- **`resolveItem`** is the single place that turns a request into something payable:
+  - For `productId === 'donation'`, it validates `amount` against the limits and returns a `Product`-shaped item: `id: 'donation'`, `name: 'Donation'`, the donation description, the chosen `amountCents`, and the shop's donation image.
+  - Otherwise it calls `getProduct(productId)` and ignores `amount` (R1.3).
+- **`itemName`** returns the catalog name, or `'Donation'` for donations. The API uses it for `productName`.
+
+The gateway, the orders table and the webhook processor don't change. A donation order is an ordinary order with `product_id = 'donation'`.
+
+## 5. Data model (`src/db.ts`)
 
 `openDb(path)` does the following:
 1. Creates the parent directory unless the path is `:memory:`.
@@ -182,7 +203,7 @@ There is no migration tooling (out of scope). If the schema changes during devel
 
 Each repository wraps prepared statements on the shared `db`. They don't open transactions themselves; the caller controls transactions.
 
-### `src/orders.js`: `createOrdersRepo(db, { now = () => new Date() } = {})`
+### `src/orders.ts`: `createOrdersRepo(db, { now = () => new Date() } = {})`
 
 ```js
 create({ productId, amountCents, method })            // → order (status 'pending')
@@ -197,7 +218,7 @@ setStatus(orderId, status)                            // updates status and upda
 
 Rows come back in camelCase (`amountCents`, `stripePaymentIntentId`, …).
 
-### `src/event-log.js`: `createEventLog(db, { now })`
+### `src/event-log.ts`: `createEventLog(db, { now })`
 
 ```js
 isProcessed(stripeEventId)                             // → boolean
@@ -207,7 +228,7 @@ list({ limit = 200 } = {})                             // newest first (R5.3)
 listForOrder(orderId)                                  // oldest first (R5.4)
 ```
 
-## 7. Status transitions (`src/transitions.js`)
+## 7. Status transitions (`src/transitions.ts`)
 
 These are pure functions, and the processor's rules come entirely from them.
 
@@ -239,7 +260,7 @@ export function eventTarget(event)       // (R4.2)
 
 ## 8. Webhook processing
 
-### 8.1 Verifier (`src/webhook-verifier.js`)
+### 8.1 Verifier (`src/webhook-verifier.ts`)
 
 ```js
 createWebhookVerifier(secret)  // secret may be null
@@ -249,7 +270,7 @@ createWebhookVerifier(secret)  // secret may be null
 - If `secret` is null, it throws `WebhookNotConfiguredError` (R7.3).
 - Otherwise it calls `Stripe.webhooks.constructEvent(rawBody, header, secret)` with the default 300-second tolerance. Any failure is rethrown as `WebhookSignatureError`, whether the header is missing, the signature doesn't match or the timestamp has expired.
 
-### 8.2 Route (`src/routes/webhook.js`): `POST /webhook`
+### 8.2 Route (`src/routes/webhook.ts`): `POST /webhook`
 
 This route is mounted **before** `express.json()`, with `express.raw({ type: 'application/json' })`, because the signature is computed over the exact raw bytes.
 
@@ -262,7 +283,7 @@ This route is mounted **before** `express.json()`, with `express.raw({ type: 'ap
 
 **Retries:** in production, Stripe retries any non-2xx response with backoff for up to 3 days. `stripe listen` does **not** retry forwarded events. Locally, a redelivery means `stripe events resend <evt_id>` (T16 checks that this reaches the listen session).
 
-### 8.3 Processor (`src/webhook-processor.js`)
+### 8.3 Processor (`src/webhook-processor.ts`)
 
 `createWebhookProcessor({ db, orders, eventLog, logger }).process(event) → outcome`
 
@@ -301,7 +322,7 @@ A metadata `order_id` that doesn't exist in the database counts as unknown. That
 
 **Same-status events:** a hosted Checkout payment sends both `payment_intent.succeeded` and `checkout.session.completed`, in either order. Whichever arrives second asks for `paid → paid`, which isn't in `ALLOWED`, so it's logged as `ignored_transition` with the detail "already paid" (step 2d). This is expected and teaches that you often receive more than one event per payment.
 
-## 9. Stripe gateway (`src/stripe-gateway.js`)
+## 9. Stripe gateway (`src/stripe-gateway.ts`)
 
 `createStripeGateway(secretKey, { client } = {})` wraps `client ?? new Stripe(secretKey)`. The optional `client` lets the unit test check the exact parameters sent to Stripe without network access. It uses the library's pinned API version (`2026-08-26.dahlia` for stripe@22). No other module imports `stripe`, except the verifier, which uses only the static `Stripe.webhooks`.
 
@@ -323,7 +344,7 @@ The parameters sent to Stripe:
 - **PaymentIntent:** `amount`, `currency: 'usd'`, `metadata: { order_id }`, `automatic_payment_methods: { enabled: true }` (R3.1)
 - **Refund:** `payment_intent`, `metadata: { order_id }` (R6.1)
 
-## 10. HTTP API (`src/app.js`, `src/routes/*`)
+## 10. HTTP API (`src/app.ts`, `src/routes/*`)
 
 Each route module exports a factory that returns an `express.Router`, so each can be built and tested without `app.js`:
 
@@ -349,9 +370,9 @@ Errors are returned as `{ "error": { "message": "…" } }`.
 |---|---|---|---|---|
 | `GET /api/config` | – | `200 { publishableKey }` | | R3.2 |
 | `GET /api/products` | – | `200 [{ id, name, description, amountCents, price }]` | | R1.1 |
-| `POST /checkout` | form: `productId` | `303 Location: <session.url>` | `400` unknown product | R2.1, R2.5 |
+| `POST /checkout` | form: `productId`, plus `amount` (dollars) when `productId=donation` | `303 Location: <session.url>` | `400` unknown product or invalid donation amount | R2.1, R2.5, R10 |
 | `GET /cancel` | `?order_id=` | `200` cancel.html | – | R2.4 |
-| `POST /api/payment-intents` | JSON `{ productId }` | `201 { orderId, clientSecret }` | `400` unknown product | R3.1 |
+| `POST /api/payment-intents` | JSON `{ productId }`, plus `amount` (dollars string) for a donation | `201 { orderId, clientSecret }` | `400` unknown product or invalid donation amount | R3.1, R10 |
 | `GET /api/orders` | – | `200 [order + productName, price, dashboardUrl]` | | R5.1, R5.2 |
 | `GET /api/orders/:id` | – | `200 { order: order + productName, price, dashboardUrl, events: [event log rows + dashboardUrl] }` | `404` | R4.5, R5.4 |
 | `POST /api/orders/:id/refund` | – | `202 { refundId }` | `404`; `409` unless `paid` with a PaymentIntent id | R6 |
@@ -388,11 +409,12 @@ These are plain ES modules loaded with `<script type="module">`. Stripe.js is lo
 | `cancel.html` | A static message with a link back home and to the orders page |
 | `orders.html` | A table from `/api/orders` with status badges and Dashboard links. `paid` rows get a Refund button (`POST …/refund`), after which the page polls the row until it changes (R5.1, R5.2, R6) |
 | `order.html` | The order's fields plus the events that affected it, from `/api/orders/:id` (R5.4) |
+| `donate.html` | Preset amount buttons ($5, $10, $25) fill a custom-amount field (`type=number`, `min=1`, `max=1000`, `step=0.01`). "Donate with Checkout" posts `productId=donation&amount=…` to `/checkout`. "Donate with embedded form" goes to `pay.html?product=donation&amount=…`. Both are blocked until the field is valid |
 | `events.html` | A table from `/api/events`: time, type, order link, outcome and Dashboard link (R5.3) |
 
 `common.js` exports `fetchJson(url, opts)` (which throws on non-2xx using the API's error message), `statusBadge(status)` and `outcomeBadge(outcome)`. Pages insert data with `textContent`, never `innerHTML` with data in it.
 
-## 12. Startup (`src/server.js`)
+## 12. Startup (`src/server.ts`)
 
 ```
 import 'dotenv/config'

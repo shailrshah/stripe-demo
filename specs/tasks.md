@@ -54,6 +54,7 @@ graph LR
 | **Wave 5** | T16 | 1 |
 | **Wave 6** | T17 | 1 |
 | **Wave 7** | T18 → T19–T25 → T26 (TypeScript migration) | 7 |
+| **Wave 8** | T27 (donations) | 1 |
 
 The frontend (F\*) and README (D1) tasks depend only on the design, so they start in wave 0 alongside the foundation. They can merge any time before T16.
 
@@ -482,3 +483,21 @@ The migration keeps the app runnable at every step. T18 renames every file in on
 - `npm test` passes, including the type check.
 - `npm run test:e2e` passes.
 - Adding an `enum`, or a wrong type anywhere in `src/`, fails `npm test`.
+
+---
+
+## Wave 8: Donations (R10, design §4 "Donations")
+
+### T27: Custom-amount donations *(M, orchestrator)*
+**Owns:** `src/catalog.ts`, `src/routes/api.ts`, `src/routes/checkout.ts`, `public/donate.html`, `public/donate.js`, `public/pay.js`, the nav in every page, their tests, the e2e flow and the README.
+- Add `parseDollars`, `resolveItem` and `itemName` to `catalog.ts`. Both payment routes use `resolveItem`, and `enrichOrder` uses `itemName`.
+- Add the Donate page, and link it from the nav.
+- The pay page reads `product` and `amount` from the query string and passes both to the API. It shows the summary from the created order (`GET /api/orders/:id`), so the amount displayed is the one the server validated.
+- **Tests:**
+  - `parseDollars`: valid formats, rejected formats, and cents computed without floats (for example `'0.29'` gives 29 and `'19.99'` gives 1999).
+  - The limits, including $1.00 and $1,000.00 exactly, and 99 cents and $1,000.01 rejected.
+  - Both routes, for a valid donation and for invalid amounts: 400, no order and no gateway call.
+  - A product purchase still ignores `amount`.
+  - An e2e donation flow.
+
+**Done when:** `npm test` and `npm run test:e2e` pass, and a manual donation works in the browser.
