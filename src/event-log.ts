@@ -1,6 +1,21 @@
+import type { DatabaseSync, SQLOutputValue } from 'node:sqlite';
+import type { EventLog, EventLogRow, Outcome } from './types.ts';
+
 const COLUMNS = `id, stripe_event_id, type, stripe_created_at, received_at, order_id, outcome, detail`;
 
-function toEntry(row) {
+interface WebhookEventRow {
+  id: number;
+  stripe_event_id: string;
+  type: string;
+  stripe_created_at: string;
+  received_at: string;
+  order_id: string | null;
+  outcome: Outcome;
+  detail: string | null;
+}
+
+function toEntry(raw: Record<string, SQLOutputValue>): EventLogRow {
+  const row = raw as unknown as WebhookEventRow;
   return {
     id: row.id,
     stripeEventId: row.stripe_event_id,
@@ -13,7 +28,10 @@ function toEntry(row) {
   };
 }
 
-export function createEventLog(db, { now = () => new Date() } = {}) {
+export function createEventLog(
+  db: DatabaseSync,
+  { now = () => new Date() }: { now?: () => Date } = {},
+): EventLog {
   const selectProcessed = db.prepare('SELECT 1 FROM processed_events WHERE stripe_event_id = ?');
   const insertProcessed = db.prepare(
     'INSERT INTO processed_events (stripe_event_id, processed_at) VALUES (?, ?)',
@@ -51,11 +69,11 @@ export function createEventLog(db, { now = () => new Date() } = {}) {
     },
 
     list({ limit = 200 } = {}) {
-      return selectRecent.all(limit).map(toEntry);
+      return selectRecent.all(limit).map((row) => toEntry(row));
     },
 
     listForOrder(orderId) {
-      return selectForOrder.all(orderId).map(toEntry);
+      return selectForOrder.all(orderId).map((row) => toEntry(row));
     },
   };
 }

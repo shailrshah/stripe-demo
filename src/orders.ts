@@ -1,4 +1,6 @@
 import { randomBytes } from 'node:crypto';
+import type { DatabaseSync, SQLOutputValue } from 'node:sqlite';
+import type { Order, OrdersRepo } from './types.ts';
 
 const COLUMNS = `
   id,
@@ -13,9 +15,18 @@ const COLUMNS = `
   updated_at                 AS updatedAt
 `;
 
-const toOrder = (row) => (row ? { ...row } : undefined);
+// COLUMNS aliases every column to its camelCase name, so a raw row already has the Order shape.
+// The spread copies it off node:sqlite's null-prototype row.
+function toOrder(row: Record<string, SQLOutputValue>): Order;
+function toOrder(row: Record<string, SQLOutputValue> | undefined): Order | undefined;
+function toOrder(row: Record<string, SQLOutputValue> | undefined): Order | undefined {
+  return row ? { ...(row as unknown as Order) } : undefined;
+}
 
-export function createOrdersRepo(db, { now = () => new Date() } = {}) {
+export function createOrdersRepo(
+  db: DatabaseSync,
+  { now = () => new Date() }: { now?: () => Date } = {},
+): OrdersRepo {
   const insertStmt = db.prepare(
     `INSERT INTO orders (id, product_id, amount_cents, method, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
@@ -45,7 +56,7 @@ export function createOrdersRepo(db, { now = () => new Date() } = {}) {
       const id = `ord_${randomBytes(8).toString('hex')}`;
       const ts = timestamp();
       insertStmt.run(id, productId, amountCents, method, ts, ts);
-      return toOrder(getStmt.get(id));
+      return toOrder(getStmt.get(id)!);
     },
 
     attachCheckoutSession(orderId, sessionId) {
@@ -69,7 +80,7 @@ export function createOrdersRepo(db, { now = () => new Date() } = {}) {
     },
 
     list() {
-      return listStmt.all().map(toOrder);
+      return listStmt.all().map((row) => toOrder(row));
     },
 
     setStatus(orderId, status) {

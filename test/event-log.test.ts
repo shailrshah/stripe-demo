@@ -1,19 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import type { DatabaseSync } from 'node:sqlite';
+import type Stripe from 'stripe';
 import { openDb } from '../src/db.ts';
 import { createEventLog } from '../src/event-log.ts';
 
 const NOW = '2026-01-01T00:00:00.000Z';
 
-function insertOrder(db, id) {
+function insertOrder(db: DatabaseSync, id: string) {
   db.prepare(
     `INSERT INTO orders (id, product_id, amount_cents, method, created_at, updated_at)
      VALUES (?, 'duck', 500, 'checkout', ?, ?)`,
   ).run(id, NOW, NOW);
 }
 
-function makeEvent(id, overrides = {}) {
-  return { id, type: 'payment_intent.succeeded', created: 1767225600, ...overrides };
+function makeEvent(id: string, overrides: { type?: string; created?: number } = {}): Stripe.Event {
+  const event = { id, type: 'payment_intent.succeeded', created: 1767225600, ...overrides };
+  return event as unknown as Stripe.Event;
 }
 
 function setup() {
@@ -31,6 +34,7 @@ test('isProcessed and markProcessed track event IDs', () => {
   assert.equal(eventLog.isProcessed('evt_2'), false);
 
   const row = db.prepare('SELECT * FROM processed_events').get();
+  assert.ok(row);
   assert.equal(row.stripe_event_id, 'evt_1');
   assert.equal(row.processed_at, NOW);
   db.close();
@@ -43,7 +47,7 @@ test('marking the same event twice throws a constraint error', () => {
     code: 'ERR_SQLITE_ERROR',
     message: /UNIQUE constraint failed/,
   });
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM processed_events').get().n, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM processed_events').get()?.n, 1);
   db.close();
 });
 

@@ -51,6 +51,7 @@ test('attachCheckoutSession then findByCheckoutSession', () => {
   orders.attachCheckoutSession(order.id, 'cs_test_1');
 
   const found = orders.findByCheckoutSession('cs_test_1');
+  assert.ok(found);
   assert.equal(found.id, order.id);
   assert.equal(found.stripeCheckoutSessionId, 'cs_test_1');
   assert.equal(found.updatedAt, later);
@@ -64,6 +65,7 @@ test('attachPaymentIntent then findByPaymentIntent', () => {
   orders.attachPaymentIntent(order.id, 'pi_test_1');
 
   const found = orders.findByPaymentIntent('pi_test_1');
+  assert.ok(found);
   assert.equal(found.id, order.id);
   assert.equal(found.stripePaymentIntentId, 'pi_test_1');
   db.close();
