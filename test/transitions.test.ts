@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import type Stripe from 'stripe';
+import type { OrderStatus } from '../src/types.ts';
 import { HANDLED_TYPES, canTransition, eventTarget } from '../src/transitions.ts';
 
-const STATUSES = ['pending', 'paid', 'failed', 'canceled', 'refunded'];
+const STATUSES: OrderStatus[] = ['pending', 'paid', 'failed', 'canceled', 'refunded'];
 const ALLOWED_PAIRS = new Set([
   'pending>paid',
   'pending>failed',
@@ -11,8 +13,8 @@ const ALLOWED_PAIRS = new Set([
   'paid>refunded',
 ]);
 
-function event(type, object = {}) {
-  return { id: 'evt_1', type, data: { object } };
+function event(type: string, object: Record<string, unknown> = {}): Stripe.Event {
+  return { id: 'evt_1', type, data: { object } } as unknown as Stripe.Event;
 }
 
 test('canTransition matches the ALLOWED table on the full 5x5 matrix', () => {
@@ -34,13 +36,15 @@ test('canTransition rejects every same-status pair', () => {
 });
 
 test('canTransition rejects unknown statuses', () => {
-  assert.equal(canTransition('shipped', 'paid'), false);
-  assert.equal(canTransition('pending', 'shipped'), false);
-  assert.equal(canTransition('constructor', 'paid'), false);
+  // Statuses read from the database aren't checked at runtime, so bogus ones must be rejected.
+  const status = (s: string) => s as OrderStatus;
+  assert.equal(canTransition(status('shipped'), 'paid'), false);
+  assert.equal(canTransition('pending', status('shipped')), false);
+  assert.equal(canTransition(status('constructor'), 'paid'), false);
 });
 
 test('eventTarget maps each handled event to its status', () => {
-  const cases = [
+  const cases: [Stripe.Event, OrderStatus][] = [
     [event('checkout.session.completed', { payment_status: 'paid' }), 'paid'],
     [event('payment_intent.succeeded'), 'paid'],
     [event('payment_intent.payment_failed'), 'failed'],

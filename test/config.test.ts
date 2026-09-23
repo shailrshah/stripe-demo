@@ -8,13 +8,15 @@ const VALID = {
   STRIPE_WEBHOOK_SECRET: 'whsec_WebhookSecretValueAbc',
 };
 
-function load(overrides = {}) {
-  const env = { ...VALID, ...overrides };
+type Env = Record<string, string | undefined>;
+
+function load(overrides: Env = {}) {
+  const env: Env = { ...VALID, ...overrides };
   for (const [k, v] of Object.entries(env)) if (v === undefined) delete env[k];
   return loadConfig(env);
 }
 
-function assertConfigError(overrides, message) {
+function assertConfigError(overrides: Env, message?: RegExp) {
   assert.throws(() => load(overrides), (err) => {
     assert.ok(err instanceof ConfigError);
     assert.equal(err.name, 'ConfigError');
@@ -46,6 +48,7 @@ test('the returned object is frozen', () => {
   const config = load();
   assert.ok(Object.isFrozen(config));
   assert.throws(() => {
+    // @ts-expect-error: the config is read-only at compile time too.
     config.port = 1;
   }, TypeError);
 });
@@ -94,7 +97,7 @@ test('error messages never contain the rejected value', () => {
     assert.throws(() => load(overrides), (err) => {
       assert.ok(err instanceof ConfigError);
       assert.ok(!err.message.includes(value), `message leaked ${value}`);
-      assert.ok(!err.stack.includes(value), `stack leaked ${value}`);
+      assert.ok(!err.stack?.includes(value), `stack leaked ${value}`);
       return true;
     });
   }
@@ -102,6 +105,7 @@ test('error messages never contain the rejected value', () => {
 
 test('an invalid key error does not leak the other valid secrets', () => {
   assert.throws(() => load({ STRIPE_PUBLISHABLE_KEY: 'bad' }), (err) => {
+    assert.ok(err instanceof ConfigError);
     for (const secret of [VALID.STRIPE_SECRET_KEY, VALID.STRIPE_WEBHOOK_SECRET]) {
       assert.ok(!err.message.includes(secret));
     }

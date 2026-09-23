@@ -6,7 +6,7 @@ test('getProduct returns the product for known IDs', () => {
   for (const p of PRODUCTS) {
     assert.equal(getProduct(p.id), p);
   }
-  assert.equal(getProduct('duck').amountCents, 500);
+  assert.equal(getProduct('duck')?.amountCents, 500);
 });
 
 test('getProduct returns undefined for unknown IDs', () => {
@@ -37,8 +37,14 @@ test('every product has a unique ID and an integer price of at least 50 cents', 
 
 test('the catalog cannot be changed at runtime', () => {
   assert.ok(Object.isFrozen(PRODUCTS));
-  assert.throws(() => { getProduct('duck').amountCents = 1; }, TypeError);
+  const duck = getProduct('duck');
+  assert.ok(duck);
+  // The @ts-expect-error lines check the types forbid these writes, as the runtime does.
+  // @ts-expect-error
+  assert.throws(() => { duck.amountCents = 1; }, TypeError);
+  // @ts-expect-error
   assert.throws(() => { PRODUCTS.push({ id: 'free', amountCents: 1 }); }, TypeError);
+  // @ts-expect-error
   assert.throws(() => { PRODUCTS[0] = { id: 'duck', amountCents: 1 }; }, TypeError);
-  assert.equal(getProduct('duck').amountCents, 500);
+  assert.equal(getProduct('duck')?.amountCents, 500);
 });

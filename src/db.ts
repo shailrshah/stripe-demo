@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 CREATE INDEX IF NOT EXISTS webhook_events_order_idx ON webhook_events(order_id);
 `;
 
-export function openDb(path) {
+export function openDb(path: string): DatabaseSync {
   if (path !== ':memory:') {
     mkdirSync(dirname(path), { recursive: true });
   }

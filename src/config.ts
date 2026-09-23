@@ -1,17 +1,21 @@
+import type { Config } from './types.ts';
+
 export class ConfigError extends Error {
-  constructor(message) {
+  constructor(message: string) {
     super(message);
     this.name = 'ConfigError';
   }
 }
 
+type Env = Record<string, string | undefined>;
+
 // dotenv turns `KEY=` into an empty string, which should mean "not set".
-function read(env, name) {
+function read(env: Env, name: string): string | undefined {
   const value = env[name];
   return value === undefined || value === '' ? undefined : value;
 }
 
-function requireSecretKey(value) {
+function requireSecretKey(value: string | undefined): string {
   if (value === undefined) {
     throw new ConfigError('STRIPE_SECRET_KEY is missing; set it to your sk_test_ key.');
   }
@@ -26,7 +30,7 @@ function requireSecretKey(value) {
   return value;
 }
 
-function requirePublishableKey(value) {
+function requirePublishableKey(value: string | undefined): string {
   if (value === undefined) {
     throw new ConfigError('STRIPE_PUBLISHABLE_KEY is missing; set it to your pk_test_ key.');
   }
@@ -36,7 +40,7 @@ function requirePublishableKey(value) {
   return value;
 }
 
-function parseWebhookSecret(value) {
+function parseWebhookSecret(value: string | undefined): string | null {
   if (value === undefined) return null;
   if (!value.startsWith('whsec_')) {
     throw new ConfigError('STRIPE_WEBHOOK_SECRET must start with whsec_.');
@@ -44,7 +48,7 @@ function parseWebhookSecret(value) {
   return value;
 }
 
-function parsePort(value) {
+function parsePort(value: string | undefined): number {
   if (value === undefined) return 3000;
   const port = /^\d+$/.test(value) ? Number(value) : NaN;
   if (!(port >= 1 && port <= 65535)) {
@@ -53,7 +57,7 @@ function parsePort(value) {
   return port;
 }
 
-export function loadConfig(env = process.env) {
+export function loadConfig(env: Env = process.env): Readonly<Config> {
   const port = parsePort(read(env, 'PORT'));
   return Object.freeze({
     stripeSecretKey: requireSecretKey(read(env, 'STRIPE_SECRET_KEY')),
