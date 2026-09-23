@@ -451,3 +451,52 @@ Once the contracts in §3–§10 are fixed, modules depend only on those interfa
 - Leaf modules need only `package.json` and the schema.
 - The processor and routers need the leaf modules.
 - `app.js` puts everything together, and the integration tests come last.
+
+## 16. End-to-end tests (N2b)
+
+These tests use the real app, real Stripe test mode and a real `stripe listen`, all in one opt-in command. There's no browser: the tests drive payments with Stripe's API, the same way Stripe.js would in the browser.
+
+### Layout and running
+```
+e2e/
+├── harness.js        # startE2E() → { url, db, stripe, api, waitFor, stripeCli, stop }
+└── flows.e2e.js      # the flows, run in sequence
+```
+- The script is `"test:e2e": "node --test --test-concurrency=1 'e2e/**/*.e2e.js'"`.
+- The directory sits outside `test/`, and its files are named `*.e2e.js`, so plain `node --test` (`npm test`) never picks them up.
+
+### Harness: `startE2E()`
+1. **Keys:** read `.env` with `dotenv.config({ processEnv: {}, quiet: true })`, which parses the file without touching `process.env`. Take only `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY`, then pass them through `loadConfig`. That rejects live keys (C2), and a missing key fails with the `ConfigError` message.
+2. **Stripe CLI:** run `stripe version`. If the CLI is missing (ENOENT), fail with the `brew install` command.
+3. **Webhook secret:** run `stripe listen --print-secret`, expecting a `whsec_…` value. If it fails, tell the user to run `stripe login`. The secret is never logged or written anywhere.
+4. **App:** runs in-process on port 0 on `127.0.0.1`.
+   - It's built with `createApp`, using the real `createStripeGateway` and `createWebhookVerifier`.
+   - The database is a temp file under `os.tmpdir()`.
+   - Log lines are collected in memory and printed only when a test fails.
+5. **Listener:**
+   1. Start `stripe listen --all-snapshot --forward-to 127.0.0.1:<port>/webhook`.
+   2. Wait for `Ready!` in its output, for up to 30 seconds.
+   3. Start the tests.
+
+   This is a second listen session. Any other session you have open, such as your dev server's, gets the same events and logs them as `ignored_unknown_order`, which is harmless.
+6. **Helpers:**
+   - `stripe`: a `Stripe` client created with the test secret key, used to drive payments.
+   - `api(method, path, body?)`: sends a JSON or form request and returns `{ status, headers, body }`.
+   - `waitFor(fn, { what, timeout = 30_000 })`: polls every 250 ms. On timeout it names what it was waiting for and suggests likely causes: `stripe listen` not forwarding, or the CLI logged into a different account from `STRIPE_SECRET_KEY`.
+   - `stripeCli(...args)`: runs `stripe` synchronously and throws if it exits non-zero.
+7. **`stop()`:** stop the listener, close the server and the database, and delete the temp directory.
+
+### Flows (`flows.e2e.js`)
+
+The flows share one harness and run in order. Each test has a 60-second timeout, and each one filters the event log by its own order or event IDs, because other activity on the account also arrives.
+
+| # | Flow | Steps | Asserts |
+|---|---|---|---|
+| 1 | Embedded success | `POST /api/payment-intents`, then `stripe.paymentIntents.confirm(pi, { payment_method: 'pm_card_visa', return_url })` | Order becomes `paid`; `payment_intent.succeeded` is logged `applied` |
+| 2 | Decline, then retry | New order. Confirming with `pm_card_chargeDeclinedInsufficientFunds` rejects with a `card_declined` error. Wait for `failed`, then confirm again with `pm_card_visa` | `pending → failed`, then `failed → paid`, both `applied` |
+| 3 | Refund | `POST /api/orders/<order from flow 1>/refund` returns `202` | Order becomes `refunded`; `charge.refunded` is logged `applied` |
+| 4 | Checkout cancel | `POST /checkout` (form, `redirect: 'manual'`) returns `303` to `https://checkout.stripe.com/…`. Then `GET /cancel?order_id=…` | Order becomes `canceled` through `checkout.session.expired` |
+| 5 | Real resend | `stripe events resend <flow 1's applied evt> --confirm` | A second log row for that event appears with `ignored_duplicate`; the order is unchanged |
+| 6 | Trigger | `stripe trigger payment_intent.succeeded` | A new `payment_intent.succeeded` row appears with `order_id` NULL and `ignored_unknown_order` |
+
+Confirming on the server with the secret key uses the same PaymentIntent and produces the same webhooks as `stripe.confirmPayment` in the browser. What this skips is the Payment Element UI, which stays a manual check.

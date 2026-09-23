@@ -52,6 +52,7 @@ graph LR
 | **Wave 3** | T13 | 1 |
 | **Wave 4** | T14 · T15 | 2 |
 | **Wave 5** | T16 | 1 |
+| **Wave 6** | T17 | 1 |
 
 The frontend (F\*) and README (D1) tasks depend only on the design, so they start in wave 0 alongside the foundation. They can merge any time before T16.
 
@@ -415,6 +416,22 @@ This test uses a temp-file DB:
    - It shows the warning banner when there's no `whsec_` secret.
    - It refuses `sk_live_` keys (acceptance check 6, also covered by T13).
 3. The user runs `stripe listen` and walks through acceptance checks 1–5 and 8–10 in the browser. That also tests F1–F4 by hand, since they have no automated tests.
-   - Check that `stripe events resend <evt_id>` actually reaches the `stripe listen` session. If it doesn't, find the CLI's local endpoint ID and use `--webhook-endpoint`, then update the README.
+   - Check that `stripe events resend <evt_id>` actually reaches the `stripe listen` session. **Verified 2026-09-23: it does, with no `--webhook-endpoint` needed.**
    - Check that the frontend pages share the nav markup and CSS classes that F1 defines, since F2–F4 were written before `styles.css` existed.
 4. Every file named in design §2 exists and the traceability table in §14 holds. Fix any gaps through the task that owns the file.
+
+---
+
+## Wave 6 (added after acceptance)
+
+### T17: End-to-end tests against Stripe test mode *(M)*
+**Owns:** `e2e/harness.js`, `e2e/flows.e2e.js`, the `test:e2e` script in `package.json`, and a "End-to-end tests" section in `README.md`
+**Depends on:** everything
+**Covers:** N2b
+
+Implement design §16. Everything in "Rules for every task" applies, except that this suite deliberately uses the network, the real `.env` keys and the Stripe CLI. It must never print a key or the webhook secret.
+
+**Done when:**
+- `npm run test:e2e` passes against the developer's test account.
+- `npm test` still passes offline and doesn't run the e2e files.
+- Removing a prerequisite (the Stripe CLI or a key) gives a clear, fast failure.

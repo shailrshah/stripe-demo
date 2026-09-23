@@ -13,8 +13,10 @@ A small demo store for learning how Stripe payments work from start to finish. I
 - Keeping orders and webhook events in a local SQLite database
 - Order status and a webhook event log that visitors can see
 - Automated unit and integration tests
+- Opt-in end-to-end tests against real Stripe test mode, driven through Stripe's API (N2b)
 
 **Out of scope**
+- Browser automation of the site or of Stripe-hosted pages (hosted Checkout, 3D Secure challenges). These stay manual acceptance checks.
 - Deploying anywhere or making the app reachable from the internet
 - Live-mode keys, real cards and real payouts
 - User accounts, authentication, shopping carts with several items, inventory, tax and shipping
@@ -138,10 +140,26 @@ Priority is **Must**, **Should** or **Could**.
   - Unknown orders and unhandled event types (R4.4)
   - Event log entries and their outcomes (R4.7)
   - Returning 5xx and not recording the event when processing fails (R4.9)
+- **N2b End-to-end tests (opt-in).** `npm run test:e2e` runs the real app against real Stripe test mode, with events delivered by a real `stripe listen`. Payments are driven through Stripe's API with test payment methods; there's no browser.
+  - It's separate from `npm test`, which stays offline.
+  - It reads only the two API keys from `.env`, and refuses to run with anything but test keys (C2).
+  - It gets the webhook secret from `stripe listen --print-secret` rather than from `.env`.
+  - It uses its own port and a temporary database, so it never touches the developer's `data/`.
+  - A missing prerequisite (keys, the Stripe CLI or a CLI login) fails fast with a message saying what to fix. So does a webhook that doesn't arrive in time.
+  - It covers:
+    - an embedded payment succeeding (R3.1, R4.2)
+    - a decline followed by a successful retry, `failed` → `paid` (R4.6)
+    - a refund (R6)
+    - creating a Checkout Session and cancelling it, ending `canceled` (R2.1, R2.4)
+    - a real resend of a processed event, logged as `ignored_duplicate` (R4.3)
+    - `stripe trigger`, logged as `ignored_unknown_order` (R4.4)
 - **N3 Simplicity.** Keep dependencies to a minimum: `express`, `stripe` and `dotenv` at runtime, plus a test runner. Use the built-in `node:sqlite` module, not a third-party database driver.
 - **N4 Logging.** The server logs each webhook event's type and ID and each order status change. It never logs secrets or client secrets.
 
 ## Acceptance criteria (end to end, done by hand)
+
+N2b automates checks 2 (through the API instead of the form), 5, 9 and 10, plus the cancel half of check 4. Checks 1 and 3, and the page-level parts of the others, need a browser and stay manual.
+
 
 1. With test keys set and `stripe listen` running, buying a product through Checkout with `4242 4242 4242 4242` ends at the success page, and the order shows `paid`.
 2. Buying through the embedded form with `4000 0000 0000 9995` shows a decline message inline. Retrying with `4242…` succeeds, and the order shows `paid`.
