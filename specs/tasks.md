@@ -8,7 +8,7 @@ These tasks implement [design.md](design.md), which implements [requirements.md]
 2. **The design is the contract.** Implement signatures, return shapes, status codes and SQL exactly as `design.md` specifies. If a contract looks wrong, stop and report it instead of working around it. Changes to a contract go through `design.md` first.
 3. **Tests come with the code.** Every task that owns code also owns its tests, and is done only when `node --test <its test files>` passes. Tests must not use the network or real keys, and must not depend on `.env`: pass config explicitly. Use a silent logger stub, `{ info() {}, warn() {}, error() {} }`, so test output stays clean.
 4. **Style.** ESM, named exports, factory functions, no classes except error types. No new dependencies. Comments only where they explain *why*.
-5. **Secrets.** Never read `.env`, and never log secrets or client secrets.
+5. **Secrets.** Never read `.env`, and never log secrets or client secrets. Fake keys in tests must not look like real ones: use short, underscore-separated placeholders such as `sk_test_fake_key` or `sk_live_fake_do_not_print`. Anything like `sk_live_51` followed by 20 or more letters and digits trips GitHub push protection.
 6. **Git.** Each task is one commit whose message explains why. The orchestrator runs every task in a wave in its own worktree, merges them once the whole wave passes, runs `npm test` on the result, and pushes.
 
 ## Dependency graph
