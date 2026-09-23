@@ -29,7 +29,7 @@ A small demo store for learning how Stripe payments work from start to finish. I
 - **C2 Test mode only.** The system accepts only Stripe test keys (`sk_test_…`, `pk_test_…`).
 - **C3 No card data on our server.** Card details are entered only into Stripe-hosted or Stripe-rendered fields. Our server never receives, logs or stores card numbers.
 - **C4 Secrets out of source control.** API keys and the webhook signing secret come from environment variables or a git-ignored `.env` file.
-- **C5 Stack.** Node.js (v24+) with Express on the backend, and plain HTML, CSS and JS on the frontend (no build step). The frontend is served by the backend. Data is stored in SQLite through Node's built-in `node:sqlite` module.
+- **C5 Stack.** Node.js (v24+) with Express on the backend, and plain HTML, CSS and JS on the frontend. The backend, tests and e2e suite are written in TypeScript and run directly by Node's built-in type stripping. There is no build or transpile step anywhere, so the frontend stays JavaScript. The frontend is served by the backend. Data is stored in SQLite through Node's built-in `node:sqlite` module.
 
 ## Glossary
 
@@ -153,7 +153,8 @@ Priority is **Must**, **Should** or **Could**.
     - creating a Checkout Session and cancelling it, ending `canceled` (R2.1, R2.4)
     - a real resend of a processed event, logged as `ignored_duplicate` (R4.3)
     - `stripe trigger`, logged as `ignored_unknown_order` (R4.4)
-- **N3 Simplicity.** Keep dependencies to a minimum: `express`, `stripe` and `dotenv` at runtime, plus a test runner. Use the built-in `node:sqlite` module, not a third-party database driver.
+- **N3 Simplicity.** Keep dependencies to a minimum: `express`, `stripe` and `dotenv` at runtime. The only dev dependencies are `typescript`, `@types/node` (pinned to the Node major version in use) and `@types/express`, all for type checking. Use the built-in `node:sqlite` module, not a third-party database driver.
+- **N5 Type safety.** `npm test` type-checks the whole backend, test and e2e code in strict mode before running the tests, and a type error fails it. Stripe objects use the `stripe` package's own types (`Stripe.Event`, `Stripe.Checkout.Session`, …) rather than hand-written copies.
 - **N4 Logging.** The server logs each webhook event's type and ID and each order status change. It never logs secrets or client secrets.
 
 ## Acceptance criteria (end to end, done by hand)

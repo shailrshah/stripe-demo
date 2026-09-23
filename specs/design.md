@@ -28,6 +28,7 @@ Key decisions:
 | Decision | Choice | Why |
 |---|---|---|
 | Module format | ESM (`"type": "module"`) | Node 24 native; `stripe` v22 supports it |
+| Language | TypeScript for `src/`, `test/` and `e2e/`, run through Node's type stripping; JavaScript for `public/` | Types without a build step (C5, N5). See §17 |
 | Wiring | Factory functions with injected dependencies (`createApp({ db, gateway, verifier, … })`) | Tests swap the gateway and database without mocking libraries (N1) |
 | Stripe API calls | One `stripe-gateway` module | The only code that talks to `api.stripe.com`; faked in tests |
 | Webhook verification | Static `Stripe.webhooks.constructEvent` | Needs no API key, so tests verify real signatures (N2a) |
@@ -500,3 +501,111 @@ The flows share one harness and run in order. Each test has a 60-second timeout,
 | 6 | Trigger | `stripe trigger payment_intent.succeeded` | A new `payment_intent.succeeded` row appears with `order_id` NULL and `ignored_unknown_order` |
 
 Confirming on the server with the secret key uses the same PaymentIntent and produces the same webhooks as `stripe.confirmPayment` in the browser. What this skips is the Payment Element UI, which stays a manual check.
+
+## 17. TypeScript
+
+### Toolchain
+- **Running:** Node 24 runs `.ts` files directly by erasing the type syntax. Nothing is compiled or emitted:
+  - `npm start` runs `node src/server.ts`.
+  - `npm test` runs `node --test`, which picks up `test/**/*.test.ts` by default.
+- **Checking:** `tsc` only type-checks.
+  - `npm run typecheck` runs `tsc -p .`.
+  - `npm test` runs `npm run typecheck && node --test`.
+- **Frontend:** `public/` stays JavaScript and is excluded from `tsc`.
+
+### `tsconfig.json`
+```json
+{
+  "compilerOptions": {
+    "target": "es2024",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["src", "test", "e2e"]
+}
+```
+- `erasableSyntaxOnly` rejects syntax that type stripping can't delete: `enum`, `namespace` and constructor parameter properties. Use union types and plain objects instead.
+- `verbatimModuleSyntax` means type-only imports must be written `import type …`, because stripping deletes them.
+- Relative imports use the `.ts` extension: `import { openDb } from './db.ts'`.
+
+### Shared types (`src/types.ts`)
+This is the contract every module is typed against. It contains types only and has no runtime code.
+
+```ts
+import type Stripe from 'stripe';
+
+export type OrderStatus = 'pending' | 'paid' | 'failed' | 'canceled' | 'refunded';
+export type PaymentMethodKind = 'checkout' | 'embedded';
+export type Outcome =
+  | 'applied' | 'ignored_duplicate' | 'ignored_transition'
+  | 'ignored_unknown_order' | 'ignored_unhandled_type';
+
+export interface Product { id: string; name: string; description: string; amountCents: number }
+
+export interface Order {
+  id: string; productId: string; amountCents: number; currency: string;
+  method: PaymentMethodKind; status: OrderStatus;
+  stripeCheckoutSessionId: string | null; stripePaymentIntentId: string | null;
+  createdAt: string; updatedAt: string;
+}
+
+export interface EventLogRow {
+  id: number; stripeEventId: string; type: string; stripeCreatedAt: string; receivedAt: string;
+  orderId: string | null; outcome: Outcome; detail: string | null;
+}
+
+export interface Config {
+  stripeSecretKey: string; stripePublishableKey: string; webhookSecret: string | null;
+  port: number; databasePath: string; baseUrl: string;
+}
+
+export interface Logger {
+  info(...args: unknown[]): void; warn(...args: unknown[]): void; error(...args: unknown[]): void;
+}
+
+export interface Gateway {
+  createCheckoutSession(args: { orderId: string; product: Product; successUrl: string; cancelUrl: string }):
+    Promise<{ id: string; url: string }>;
+  expireCheckoutSession(sessionId: string): Promise<void>;
+  createPaymentIntent(args: { orderId: string; product: Product }): Promise<{ id: string; clientSecret: string }>;
+  createRefund(args: { paymentIntentId: string; orderId: string }): Promise<{ id: string }>;
+}
+
+export interface OrdersRepo {
+  create(args: { productId: string; amountCents: number; method: PaymentMethodKind }): Order;
+  attachCheckoutSession(orderId: string, sessionId: string): void;
+  attachPaymentIntent(orderId: string, paymentIntentId: string): void;
+  get(orderId: string): Order | undefined;
+  findByCheckoutSession(sessionId: string): Order | undefined;
+  findByPaymentIntent(paymentIntentId: string): Order | undefined;
+  list(): Order[];
+  setStatus(orderId: string, status: OrderStatus): void;
+}
+
+export interface EventLog {
+  isProcessed(stripeEventId: string): boolean;
+  markProcessed(stripeEventId: string): void;
+  append(args: { event: Stripe.Event; orderId: string | null; outcome: Outcome; detail?: string | null }): void;
+  list(options?: { limit?: number }): EventLogRow[];
+  listForOrder(orderId: string): EventLogRow[];
+}
+
+export interface WebhookVerifier { verify(rawBody: Buffer, signatureHeader: string | undefined): Stripe.Event }
+export interface WebhookProcessor { process(event: Stripe.Event): Outcome }
+```
+
+### Typing rules
+- **Factories:** each factory declares its return type from `types.ts`. For example, `createOrdersRepo(...): OrdersRepo`.
+- **Database rows:** `node:sqlite` returns untyped rows (`Record<string, SQLOutputValue>`). Each repository casts rows once, at the point where it maps them to camelCase, and nowhere else.
+- **Stripe events:** the processor and transitions take `Stripe.Event` and narrow on `event.type` to get a typed `data.object`.
+  - Where a type isn't one of the five handled types, its `data.object` is read through a small structural type, `{ object: string; id: string; metadata?: Record<string, string> | null; payment_intent?: … }`.
+- **Nullable Stripe fields:** Stripe types some fields as nullable even though they're set in our flows. Examples are `Checkout.Session.url` and `PaymentIntent.client_secret`. The gateway checks them and throws if one is `null`, rather than using non-null assertions.
+- **Test event builders:** they build plain objects and cast them to `Stripe.Event` once, inside the helper (`as unknown as Stripe.Event`), so the tests themselves need no casts.
+- **No `any`:** use `unknown` plus narrowing instead. The only exceptions are the documented boundaries above.

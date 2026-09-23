@@ -53,6 +53,7 @@ graph LR
 | **Wave 4** | T14 · T15 | 2 |
 | **Wave 5** | T16 | 1 |
 | **Wave 6** | T17 | 1 |
+| **Wave 7** | T18 → T19–T25 → T26 (TypeScript migration) | 7 |
 
 The frontend (F\*) and README (D1) tasks depend only on the design, so they start in wave 0 alongside the foundation. They can merge any time before T16.
 
@@ -435,3 +436,49 @@ Implement design §16. Everything in "Rules for every task" applies, except that
 - `npm run test:e2e` passes against the developer's test account.
 - `npm test` still passes offline and doesn't run the e2e files.
 - Removing a prerequisite (the Stripe CLI or a key) gives a clear, fast failure.
+
+---
+
+## Wave 7: TypeScript migration (design §17)
+
+The migration keeps the app runnable at every step. T18 renames every file in one go, and the result already runs: the JavaScript is valid TypeScript, and type stripping ignores types that aren't there. The parallel tasks then add types, each owning a separate set of files. T26 makes the whole project type-check and turns the check on in `npm test`.
+
+**Rules:** the "Rules for every task" still apply.
+- Each parallel task must make `npx tsc -p .` report **no errors in the files it owns**. Errors in other tasks' files are expected until T26.
+- `node --test` must still pass after every task.
+- Change behavior nowhere. This is a typing-only migration: if a type error reveals a real bug, report it instead of fixing it silently.
+
+### T18: TypeScript foundation *(S, orchestrator)*
+**Owns:** `package.json`, `package-lock.json`, `tsconfig.json`, `src/types.ts`, and every rename.
+- Add the dev dependencies.
+- Add the `tsconfig.json` from design §17.
+- Add `src/types.ts` from design §17.
+- `git mv` every `src/`, `test/` and `e2e/` `.js` file to `.ts`, and rewrite the relative imports to `.ts`.
+- Update the scripts: `start` becomes `node src/server.ts`, `test:e2e` switches to the `.e2e.ts` glob, and `typecheck` is added.
+- `test` stays `node --test` until T26.
+
+**Done when:** `node --test` passes with 159 tests.
+
+### T19–T25: Add types *(parallel)*
+
+| Task | Owns (and their tests) |
+|---|---|
+| T19 | `src/config.ts`, `src/catalog.ts`, `src/db.ts`, `src/transitions.ts` |
+| T20 | `src/orders.ts`, `src/event-log.ts` |
+| T21 | `src/stripe-gateway.ts`, `src/webhook-verifier.ts` |
+| T22 | `src/webhook-processor.ts` |
+| T23 | `src/routes/api.ts`, `src/routes/checkout.ts`, `src/routes/webhook.ts` |
+| T24 | `src/app.ts`, `src/server.ts`, `test/helpers/*.ts`, `test/app.test.ts`, `test/webhook.integration.test.ts`, `test/persistence.integration.test.ts`, `test/stripe-events.test.ts` |
+| T25 | `e2e/harness.ts`, `e2e/flows.e2e.ts` |
+
+"And their tests" means each module's unit test file, for example `test/orders.test.ts` for `src/orders.ts`.
+
+### T26: Type-check everything *(S, orchestrator)*
+- Fix whatever errors remain where files meet.
+- Change `test` to `npm run typecheck && node --test`.
+- Update the README (Node 24 runs TypeScript directly; `npm run typecheck`) and the file names in design §2.
+
+**Done when:**
+- `npm test` passes, including the type check.
+- `npm run test:e2e` passes.
+- Adding an `enum`, or a wrong type anywhere in `src/`, fails `npm test`.
