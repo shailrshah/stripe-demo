@@ -9,9 +9,12 @@ const PRODUCT = {
   amountCents: 500,
 };
 
-function fakeClient() {
-  const calls = [];
-  const record = (name, result) => async (...args) => {
+function fakeClient({
+  sessionUrl = 'https://checkout.stripe.com/c/pay/cs_test_1',
+  clientSecret = 'pi_test_1_secret_abc',
+}: { sessionUrl?: string | null; clientSecret?: string | null } = {}) {
+  const calls: { name: string; args: unknown[] }[] = [];
+  const record = <T>(name: string, result: T) => async (...args: unknown[]) => {
     calls.push({ name, args });
     return result;
   };
@@ -20,7 +23,7 @@ function fakeClient() {
       sessions: {
         create: record('checkout.sessions.create', {
           id: 'cs_test_1',
-          url: 'https://checkout.stripe.com/c/pay/cs_test_1',
+          url: sessionUrl,
           object: 'checkout.session',
           status: 'open',
         }),
@@ -34,7 +37,7 @@ function fakeClient() {
     paymentIntents: {
       create: record('paymentIntents.create', {
         id: 'pi_test_1',
-        client_secret: 'pi_test_1_secret_abc',
+        client_secret: clientSecret,
         object: 'payment_intent',
         amount: 500,
       }),
@@ -85,6 +88,21 @@ test('createCheckoutSession sends the exact parameters and returns { id, url }',
   ]);
 });
 
+test('createCheckoutSession throws when Stripe returns a session without a url', async () => {
+  const { client } = fakeClient({ sessionUrl: null });
+  const gateway = createStripeGateway('sk_test_fake_key', { client });
+
+  await assert.rejects(
+    gateway.createCheckoutSession({
+      orderId: 'ord_1',
+      product: PRODUCT,
+      successUrl: 'http://127.0.0.1:3000/success.html?order_id=ord_1',
+      cancelUrl: 'http://127.0.0.1:3000/cancel?order_id=ord_1',
+    }),
+    { name: 'Error', message: 'Checkout Session cs_test_1 has no url' },
+  );
+});
+
 test('expireCheckoutSession expires the session and returns nothing', async () => {
   const { client, calls } = fakeClient();
   const gateway = createStripeGateway('sk_test_dummy', { client });
@@ -117,6 +135,16 @@ test('createPaymentIntent sends the exact parameters and returns { id, clientSec
   ]);
 });
 
+test('createPaymentIntent throws when Stripe returns an intent without a client_secret', async () => {
+  const { client } = fakeClient({ clientSecret: null });
+  const gateway = createStripeGateway('sk_test_fake_key', { client });
+
+  await assert.rejects(gateway.createPaymentIntent({ orderId: 'ord_2', product: PRODUCT }), {
+    name: 'Error',
+    message: 'PaymentIntent pi_test_1 has no client_secret',
+  });
+});
+
 test('createRefund sends the exact parameters and returns { id }', async () => {
   const { client, calls } = fakeClient();
   const gateway = createStripeGateway('sk_test_dummy', { client });
@@ -139,7 +167,7 @@ test('constructing without a client builds a real one without calling Stripe', (
     'expireCheckoutSession',
     'createPaymentIntent',
     'createRefund',
-  ]) {
+  ] as const) {
     assert.equal(typeof gateway[name], 'function', `missing ${name}`);
   }
 });

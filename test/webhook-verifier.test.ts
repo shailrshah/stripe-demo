@@ -11,11 +11,14 @@ const SECRET = 'whsec_test_secret';
 const EVENT = { id: 'evt_1', object: 'event', type: 'payment_intent.succeeded', data: { object: {} } };
 const PAYLOAD = JSON.stringify(EVENT);
 
-function sign(payload, { secret = SECRET, timestamp = Math.floor(Date.now() / 1000) } = {}) {
+function sign(
+  payload: string,
+  { secret = SECRET, timestamp = Math.floor(Date.now() / 1000) }: { secret?: string; timestamp?: number } = {},
+) {
   return Stripe.webhooks.generateTestHeaderString({ payload, secret, timestamp });
 }
 
-function assertSignatureError(fn) {
+function assertSignatureError(fn: () => unknown) {
   assert.throws(fn, (err) => {
     assert.ok(err instanceof WebhookSignatureError);
     assert.equal(err.name, 'WebhookSignatureError');

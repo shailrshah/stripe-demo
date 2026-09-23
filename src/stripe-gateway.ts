@@ -1,7 +1,24 @@
 import Stripe from 'stripe';
+import type { Gateway } from './types.ts';
 
-export function createStripeGateway(secretKey, { client } = {}) {
-  const stripe = client ?? new Stripe(secretKey);
+// Only the slice of the Stripe client the gateway calls, so tests can pass a small fake.
+interface StripeClient {
+  checkout: {
+    sessions: {
+      create(params: Stripe.Checkout.SessionCreateParams): Promise<{ id: string; url: string | null }>;
+      expire(sessionId: string): Promise<unknown>;
+    };
+  };
+  paymentIntents: {
+    create(params: Stripe.PaymentIntentCreateParams): Promise<{ id: string; client_secret: string | null }>;
+  };
+  refunds: {
+    create(params: Stripe.RefundCreateParams): Promise<{ id: string }>;
+  };
+}
+
+export function createStripeGateway(secretKey: string, { client }: { client?: StripeClient } = {}): Gateway {
+  const stripe: StripeClient = client ?? new Stripe(secretKey);
 
   return {
     async createCheckoutSession({ orderId, product, successUrl, cancelUrl }) {
@@ -22,6 +39,7 @@ export function createStripeGateway(secretKey, { client } = {}) {
         success_url: successUrl,
         cancel_url: cancelUrl,
       });
+      if (session.url === null) throw new Error(`Checkout Session ${session.id} has no url`);
       return { id: session.id, url: session.url };
     },
 
@@ -36,6 +54,7 @@ export function createStripeGateway(secretKey, { client } = {}) {
         metadata: { order_id: orderId },
         automatic_payment_methods: { enabled: true },
       });
+      if (intent.client_secret === null) throw new Error(`PaymentIntent ${intent.id} has no client_secret`);
       return { id: intent.id, clientSecret: intent.client_secret };
     },
 
