@@ -8,6 +8,7 @@ A small demo store for learning how Stripe payments work from start to finish. I
 
 **In scope**
 - A tiny product catalog with a checkout flow built on Stripe
+- Donations of an amount the visitor chooses (R10)
 - Two ways to pay: Stripe-hosted Checkout, and an embedded Payment Element
 - Payment confirmation through Stripe webhooks, forwarded to the local server by the Stripe CLI. Every event is verified, stored and applied once.
 - Keeping orders and webhook events in a local SQLite database
@@ -47,7 +48,7 @@ Priority is **Must**, **Should** or **Could**.
 
 - R1.1 The home page lists every product with a photo, its name, description and price, formatted as dollars (for example `$12.00`). Photos are hotlinked stock images, not stored in the repo.
 - R1.2 Each product offers a "Buy with Checkout" action and a "Buy with embedded form" action.
-- R1.3 The product list is defined on the server. The client cannot change prices: the server looks up the amount by product ID and ignores any price sent from the browser.
+- R1.3 The product list is defined on the server. The client cannot change prices: the server looks up the amount by product ID and ignores any price sent from the browser. Donations (R10) are the one exception: the visitor chooses the amount, and the server validates it.
 
 ### R2 Hosted Checkout (Must)
 **User story:** As a visitor, I want to pay on Stripe's hosted page so that I can finish a purchase with a test card.
@@ -125,6 +126,17 @@ Priority is **Must**, **Should** or **Could**.
 - R9.3 A server restart loses no orders, event log entries or processed-event records.
 - R9.4 Amounts are stored as whole numbers of cents, and timestamps as UTC ISO-8601 strings.
 
+### R10 Donations (Should)
+**User story:** As a visitor, I want to donate an amount I choose so that I can support the shop without buying anything.
+
+- R10.1 A Donate page, linked from the nav, lets the visitor pick a preset amount ($5, $10 or $25) or type a custom amount in US dollars.
+- R10.2 The amount must be between $1.00 and $1,000.00, with at most two decimal places.
+  - The server validates every donation amount, whatever the browser sent.
+  - An invalid amount gets a 400, and no order, Checkout Session or PaymentIntent is created.
+  - The page also validates the amount before submitting, but only as a convenience.
+- R10.3 The visitor can pay through hosted Checkout or the embedded form, in the same flows as a product purchase (R2, R3). The donation is stored as an order for the product `donation`, named "Donation", with the chosen amount.
+- R10.4 Status tracking, webhooks, refunds and the event log work exactly as they do for purchases (R4–R6). The payment flows need no donation-specific code beyond resolving the amount.
+
 ## Non-functional requirements
 
 - **N1 Testability.** Stripe API calls go through a single module that can be swapped out, so tests run without network access or real keys. The database path can be injected, so tests use an in-memory database or a temporary file.
@@ -153,6 +165,7 @@ Priority is **Must**, **Should** or **Could**.
     - creating a Checkout Session and cancelling it, ending `canceled` (R2.1, R2.4)
     - a real resend of a processed event, logged as `ignored_duplicate` (R4.3)
     - `stripe trigger`, logged as `ignored_unknown_order` (R4.4)
+    - a custom-amount donation through the embedded flow, ending `paid` with the chosen amount (R10)
 - **N3 Simplicity.** Keep dependencies to a minimum: `express`, `stripe` and `dotenv` at runtime. The only dev dependencies are `typescript`, `@types/node` (pinned to the Node major version in use) and `@types/express`, all for type checking. Use the built-in `node:sqlite` module, not a third-party database driver.
 - **N5 Type safety.** `npm test` type-checks the whole backend, test and e2e code in strict mode before running the tests, and a type error fails it. Stripe objects use the `stripe` package's own types (`Stripe.Event`, `Stripe.Checkout.Session`, …) rather than hand-written copies.
 - **N4 Logging.** The server logs each webhook event's type and ID and each order status change. It never logs secrets or client secrets.
