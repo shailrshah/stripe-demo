@@ -109,7 +109,7 @@ stripe-demo/
 | `STRIPE_WEBHOOK_SECRET` | `webhookSecret` | Optional; `null` if unset (R7.3). Must start with `whsec_` if set |
 | `PORT` | `port` | Integer 1–65535; defaults to `3000` (R7.4) |
 | `DATABASE_PATH` | `databasePath` | Defaults to `data/stripe-demo.db` (R9.1) |
-| `BASE_URL` | `baseUrl` | Optional public origin, for example an ngrok URL. It's validated and normalized to `URL.origin`, and a path, query or fragment throws. Defaults to `http://127.0.0.1:${port}` (R7.5) |
+| `BASE_URL` | `baseUrl`, `basePath` | Optional public URL, for example an ngrok URL, with an optional path prefix. `baseUrl` is the URL without a trailing slash. `basePath` is its path: `''` or something like `/stripe-demo`, where each segment uses only `A-Z a-z 0-9 . _ ~ -`. A query or fragment throws. Defaults to `http://127.0.0.1:${port}` with `basePath: ''` (R7.5) |
 
 On `ConfigError`, `server.js` prints the message and runs `process.exit(1)`. Secret values never appear in the message; the key's prefix is enough to explain a failure (N4).
 
@@ -356,7 +356,7 @@ createApiRouter({ config, orders, eventLog, gateway, logger })           // rout
 
 `logger` is anything with `info`, `warn` and `error` methods: `console` in production, and a silent stub in tests.
 
-`createApp({ config, db, gateway, verifier, logger })` builds the repositories and the processor, then mounts, in this order:
+`createApp({ config, db, gateway, verifier, logger })` builds the repositories and the processor. The webhook router is mounted at the root. Everything else is mounted on a site router at `config.basePath`, or at the root when that's empty. With a `basePath`, `/` and the bare `basePath` both redirect to `basePath + '/'`. The mount order is:
 1. The webhook router (raw body)
 2. `express.json()` and `express.urlencoded()`
 3. The checkout router
@@ -413,6 +413,8 @@ These are plain ES modules loaded with `<script type="module">`. Stripe.js is lo
 | `events.html` | A table from `/api/events`: time, type, order link, outcome and Dashboard link (R5.3) |
 
 `common.js` exports `fetchJson(url, opts)` (which throws on non-2xx using the API's error message), `statusBadge(status)` and `outcomeBadge(outcome)`. Pages insert data with `textContent`, never `innerHTML` with data in it.
+
+**URLs are relative.** Every same-site link, `fetch`, form `action`, `src` and `href` is relative (`api/orders`, `orders.html`, `./` for the shop), so the same files work at `/` and under any `basePath`. All pages sit in one directory, so relative URLs resolve the same way from every page. The server makes this safe by redirecting the bare `basePath` to `basePath + '/'`; without the trailing slash, relative URLs would resolve against the parent directory.
 
 ## 12. Startup (`src/server.ts`)
 

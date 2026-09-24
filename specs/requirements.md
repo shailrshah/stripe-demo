@@ -108,7 +108,12 @@ Priority is **Must**, **Should** or **Could**.
 - R7.2 The server refuses to start if the publishable key is missing or does not start with `pk_test_`.
 - R7.3 If the webhook signing secret is missing, the server starts but logs a prominent warning, and the webhook endpoint rejects every event.
 - R7.4 The server listens on `127.0.0.1` only, on a port that is configurable and defaults to `3000`.
-- R7.5 An optional `BASE_URL` sets the public origin used in the URLs that send browsers back to the site, such as hosted Checkout's success and cancel URLs. It must be an http(s) origin with no path, query or fragment; anything else fails at startup. It defaults to `http://127.0.0.1:<port>`.
+- R7.5 An optional `BASE_URL` sets the public URL of the site. It may include a path prefix, such as `https://example.ngrok-free.dev/stripe-demo`.
+  - It's used in the URLs that send browsers back to the site, such as hosted Checkout's success and cancel URLs.
+  - When it has a path, every page and API route is served under that path, and `/` redirects to it.
+  - The webhook endpoint stays at `/webhook`, because only the local Stripe CLI calls it.
+  - It must be an http(s) URL with no query or fragment; anything else fails at startup.
+  - It defaults to `http://127.0.0.1:<port>`, with no prefix.
 
 ### R8 Developer experience (Must)
 - R8.1 A README explains setup: getting test keys, creating `.env` from `.env.example`, installing the Stripe CLI, running `stripe listen --all-snapshot --forward-to 127.0.0.1:<port>/webhook` and starting the app.
