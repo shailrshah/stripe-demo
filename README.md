@@ -224,7 +224,13 @@ ngrok http 127.0.0.1:3000
    - Hosted Checkout needs this setting. Without it, visitors who pay are sent back to `127.0.0.1` on *their own* computer, which fails.
    - The embedded form works either way.
 2. Keep `stripe listen` running as usual. Webhooks still reach the server locally, so there's nothing to register in the Stripe Dashboard.
-3. When you're done, stop ngrok and remove `BASE_URL`. Free ngrok URLs change every time ngrok restarts, so update `BASE_URL` each time.
+3. When you're done, stop ngrok and remove `BASE_URL`.
+
+**Keep the same URL across restarts:** by default, ngrok gives you a new random URL every time it starts. Every ngrok account, including free ones, can claim one **static domain** under **Domains** in the ngrok dashboard. ngrok chooses the name; choosing your own name needs a paid plan. Start the tunnel on it, and set `BASE_URL` to it once:
+
+```sh
+ngrok http 127.0.0.1:3000 --url https://<your-static-domain>.ngrok-free.dev
+```
 
 **What to expect:**
 - **Test mode only:** visitors pay with test cards. Real cards are rejected.
