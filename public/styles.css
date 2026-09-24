@@ -111,6 +111,7 @@ main > h2, section > h2 { margin: 28px 0 8px; }
 
 .nav a:hover { background: var(--bg); color: var(--text); }
 .nav a[aria-current="page"] { color: var(--accent); font-weight: 600; }
+.nav-external::after { content: " ↗"; font-size: 0.85em; }
 
 /* Buttons */
 .btn {
