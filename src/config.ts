@@ -57,6 +57,26 @@ function parsePort(value: string | undefined): number {
   return port;
 }
 
+// The public origin that browsers are sent back to from hosted Checkout, e.g. an ngrok URL.
+// The server itself still listens on 127.0.0.1; a tunnel forwards public traffic to it.
+function parseBaseUrl(value: string | undefined, port: number): string {
+  if (value === undefined) return `http://127.0.0.1:${port}`;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ConfigError(`BASE_URL must be an absolute http(s) URL, got "${value}".`);
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new ConfigError(`BASE_URL must use http or https, got "${value}".`);
+  }
+  // The app is served from the root, so a path would produce broken return URLs.
+  if (url.pathname !== '/' || url.search || url.hash) {
+    throw new ConfigError(`BASE_URL must be just an origin such as https://example.ngrok-free.app, got "${value}".`);
+  }
+  return url.origin;
+}
+
 export function loadConfig(env: Env = process.env): Readonly<Config> {
   const port = parsePort(read(env, 'PORT'));
   return Object.freeze({
@@ -65,6 +85,6 @@ export function loadConfig(env: Env = process.env): Readonly<Config> {
     webhookSecret: parseWebhookSecret(read(env, 'STRIPE_WEBHOOK_SECRET')),
     port,
     databasePath: read(env, 'DATABASE_PATH') ?? 'data/stripe-demo.db',
-    baseUrl: `http://127.0.0.1:${port}`,
+    baseUrl: parseBaseUrl(read(env, 'BASE_URL'), port),
   });
 }

@@ -18,7 +18,7 @@ A small demo store for learning how Stripe payments work from start to finish. I
 
 **Out of scope**
 - Browser automation of the site or of Stripe-hosted pages (hosted Checkout, 3D Secure challenges). These stay manual acceptance checks.
-- Deploying anywhere or making the app reachable from the internet
+- Deploying anywhere, or permanent public hosting. Temporary sharing through a tunnel such as ngrok is allowed (C1).
 - Live-mode keys, real cards and real payouts
 - User accounts, authentication, shopping carts with several items, inventory, tax and shipping
 - Database servers, migration tooling and ORMs
@@ -26,7 +26,7 @@ A small demo store for learning how Stripe payments work from start to finish. I
 
 ## Constraints
 
-- **C1 Local only.** The frontend and backend run on the loopback address `127.0.0.1`. The only outbound network traffic is to Stripe (the API, Stripe.js and hosted Checkout), the Stripe CLI's webhook forwarding, and product photos that the browser loads from Unsplash's image CDN (`images.unsplash.com`).
+- **C1 Local only.** The frontend and backend run on the loopback address `127.0.0.1`. The site may be shared temporarily through a tunnel such as ngrok, which forwards public traffic to `127.0.0.1`. When it is shared, `BASE_URL` sets the public origin (R7.5). There is no authentication: this is a dummy test-mode site, so anyone with the tunnel URL may see orders and events, and may trigger refunds. The only outbound network traffic is to Stripe (the API, Stripe.js and hosted Checkout), the Stripe CLI's webhook forwarding, and product photos that the browser loads from Unsplash's image CDN (`images.unsplash.com`).
 - **C2 Test mode only.** The system accepts only Stripe test keys (`sk_test_…`, `pk_test_…`).
 - **C3 No card data on our server.** Card details are entered only into Stripe-hosted or Stripe-rendered fields. Our server never receives, logs or stores card numbers.
 - **C4 Secrets out of source control.** API keys and the webhook signing secret come from environment variables or a git-ignored `.env` file.
@@ -108,6 +108,7 @@ Priority is **Must**, **Should** or **Could**.
 - R7.2 The server refuses to start if the publishable key is missing or does not start with `pk_test_`.
 - R7.3 If the webhook signing secret is missing, the server starts but logs a prominent warning, and the webhook endpoint rejects every event.
 - R7.4 The server listens on `127.0.0.1` only, on a port that is configurable and defaults to `3000`.
+- R7.5 An optional `BASE_URL` sets the public origin used in the URLs that send browsers back to the site, such as hosted Checkout's success and cancel URLs. It must be an http(s) origin with no path, query or fragment; anything else fails at startup. It defaults to `http://127.0.0.1:<port>`.
 
 ### R8 Developer experience (Must)
 - R8.1 A README explains setup: getting test keys, creating `.env` from `.env.example`, installing the Stripe CLI, running `stripe listen --all-snapshot --forward-to 127.0.0.1:<port>/webhook` and starting the app.

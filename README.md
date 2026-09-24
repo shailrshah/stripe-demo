@@ -212,6 +212,25 @@ specs/      requirements.md, design.md, tasks.md
 
 For how it works in detail, see [`specs/requirements.md`](specs/requirements.md) (what it must do) and [`specs/design.md`](specs/design.md) (architecture, database schema, webhook processing and API).
 
+## Sharing with ngrok
+
+The server listens only on `127.0.0.1`. To show the site to someone else temporarily, put a tunnel in front of it:
+
+```sh
+ngrok http 127.0.0.1:3000
+```
+
+1. Copy the `https://…ngrok-free.app` URL that ngrok prints into `.env` as `BASE_URL=https://…ngrok-free.app`, then restart `npm start`.
+   - Hosted Checkout needs this setting. Without it, visitors who pay are sent back to `127.0.0.1` on *their own* computer, which fails.
+   - The embedded form works either way.
+2. Keep `stripe listen` running as usual. Webhooks still reach the server locally, so there's nothing to register in the Stripe Dashboard.
+3. When you're done, stop ngrok and remove `BASE_URL`. Free ngrok URLs change every time ngrok restarts, so update `BASE_URL` each time.
+
+**What to expect:**
+- **Test mode only:** visitors pay with test cards. Real cards are rejected.
+- **No authentication:** anyone with the URL can see every order and webhook event, create payments in your Stripe test account, and refund orders. That's acceptable for a dummy site, but don't share the URL widely. ngrok's own access controls, such as basic auth, can restrict who gets in.
+- **ngrok's warning page:** free ngrok shows a "You are about to visit…" page before the site. That's normal.
+
 ## Security notes
 
 - Secrets live in `.env`, which is git-ignored. Only `.env.example`, which has placeholder values, is committed. The server never logs secrets or client secrets.

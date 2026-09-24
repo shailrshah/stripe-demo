@@ -109,7 +109,7 @@ stripe-demo/
 | `STRIPE_WEBHOOK_SECRET` | `webhookSecret` | Optional; `null` if unset (R7.3). Must start with `whsec_` if set |
 | `PORT` | `port` | Integer 1–65535; defaults to `3000` (R7.4) |
 | `DATABASE_PATH` | `databasePath` | Defaults to `data/stripe-demo.db` (R9.1) |
-| (derived) | `baseUrl` | `http://127.0.0.1:${port}` |
+| `BASE_URL` | `baseUrl` | Optional public origin, for example an ngrok URL. It's validated and normalized to `URL.origin`, and a path, query or fragment throws. Defaults to `http://127.0.0.1:${port}` (R7.5) |
 
 On `ConfigError`, `server.js` prints the message and runs `process.exit(1)`. Secret values never appear in the message; the key's prefix is enough to explain a failure (N4).
 

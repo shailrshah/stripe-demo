@@ -112,3 +112,20 @@ test('an invalid key error does not leak the other valid secrets', () => {
     return true;
   });
 });
+
+test('BASE_URL defaults to the loopback origin on the configured port', () => {
+  assert.equal(load({ PORT: '4000' }).baseUrl, 'http://127.0.0.1:4000');
+  assert.equal(load({ BASE_URL: '' }).baseUrl, 'http://127.0.0.1:3000');
+});
+
+test('BASE_URL accepts a public origin and normalizes it', () => {
+  assert.equal(load({ BASE_URL: 'https://abc123.ngrok-free.app' }).baseUrl, 'https://abc123.ngrok-free.app');
+  assert.equal(load({ BASE_URL: 'https://abc123.ngrok-free.app/' }).baseUrl, 'https://abc123.ngrok-free.app');
+  assert.equal(load({ BASE_URL: 'HTTPS://Example.COM:8443' }).baseUrl, 'https://example.com:8443');
+});
+
+test('BASE_URL must be an http(s) origin with no path, query or hash', () => {
+  for (const value of ['not a url', 'example.com', 'ftp://example.com', 'https://example.com/shop', 'https://example.com/?a=1', 'https://example.com/#x']) {
+    assertConfigError({ BASE_URL: value }, /BASE_URL/);
+  }
+});
