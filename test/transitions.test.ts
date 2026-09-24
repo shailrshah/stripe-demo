@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type Stripe from 'stripe';
 import type { OrderStatus } from '../src/types.ts';
-import { HANDLED_TYPES, canTransition, eventTarget } from '../src/transitions.ts';
+import { HANDLED_TYPES, applyPaymentEvent, canTransition, eventTarget } from '../src/transitions.ts';
 
 const STATUSES: OrderStatus[] = ['pending', 'paid', 'failed', 'canceled', 'refunded'];
 const ALLOWED_PAIRS = new Set([
@@ -75,4 +75,24 @@ test('HANDLED_TYPES lists exactly the five handled types and is frozen', () => {
   ]);
   assert.ok(Object.isFrozen(HANDLED_TYPES));
   assert.ok(!HANDLED_TYPES.includes('customer.created'));
+});
+
+test('applyPaymentEvent applies allowed moves and explains every ignored one', () => {
+  const succeeded = event('payment_intent.succeeded');
+  assert.deepEqual(applyPaymentEvent('pending', succeeded), { kind: 'apply', to: 'paid', detail: 'pending → paid' });
+  assert.deepEqual(applyPaymentEvent('failed', succeeded), { kind: 'apply', to: 'paid', detail: 'failed → paid' });
+  assert.deepEqual(applyPaymentEvent('paid', succeeded), { kind: 'ignore', detail: 'already paid' });
+  assert.deepEqual(applyPaymentEvent('canceled', succeeded), { kind: 'ignore', detail: 'canceled → paid not allowed' });
+  assert.deepEqual(
+    applyPaymentEvent('paid', event('payment_intent.payment_failed')),
+    { kind: 'ignore', detail: 'paid → failed not allowed' },
+  );
+  assert.deepEqual(
+    applyPaymentEvent('paid', event('charge.refunded', { refunded: true })),
+    { kind: 'apply', to: 'refunded', detail: 'paid → refunded' },
+  );
+  assert.deepEqual(
+    applyPaymentEvent('paid', event('charge.refunded', { refunded: false })),
+    { kind: 'ignore', detail: 'no status change requested' },
+  );
 });

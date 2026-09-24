@@ -40,3 +40,17 @@ export function eventTarget(event: Stripe.Event): OrderStatus | null {
       return null;
   }
 }
+
+export type TransitionResult =
+  | { kind: 'apply'; to: OrderStatus; detail: string }
+  | { kind: 'ignore'; detail: string };
+
+// The core business rule in one place: current status + a handled event → the next status, or why nothing changes.
+// Pure: no database, no Stripe calls, so it can be read and tested on its own.
+export function applyPaymentEvent(current: OrderStatus, event: Stripe.Event): TransitionResult {
+  const target = eventTarget(event);
+  if (target === null) return { kind: 'ignore', detail: 'no status change requested' };
+  if (target === current) return { kind: 'ignore', detail: `already ${current}` };
+  if (canTransition(current, target)) return { kind: 'apply', to: target, detail: `${current} → ${target}` };
+  return { kind: 'ignore', detail: `${current} → ${target} not allowed` };
+}

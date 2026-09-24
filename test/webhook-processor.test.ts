@@ -301,11 +301,11 @@ test('checkout.session.completed backfills the PaymentIntent so a later refund r
   db.close();
 });
 
-test('the backfill also runs when the session event arrives after the order is already paid', () => {
+test('a checkout order learns its PaymentIntent from whichever event arrives first', () => {
   const { db, orders, processor, newOrder } = setup();
   const order = newOrder('checkout');
   processor.process(paymentIntentSucceeded({ orderId: order.id, paymentIntentId: 'pi_test_late' }));
-  assert.equal(orders.get(order.id)?.stripePaymentIntentId, null);
+  assert.equal(orders.get(order.id)?.stripePaymentIntentId, 'pi_test_late');
 
   const completed = checkoutSessionCompleted({ orderId: order.id, paymentIntentId: 'pi_test_late' });
   assert.equal(processor.process(completed), 'ignored_transition');
@@ -456,5 +456,32 @@ test('logs one info line per event with type, ID, outcome and detail only', () =
     assert.ok(!line.includes('pi_test_secretish'), line);
     assert.ok(!line.includes(order.id), line);
   }
+  db.close();
+});
+
+test('recovers an embedded order whose PaymentIntent ID was never saved, so it can still be refunded', () => {
+  // Simulates the server failing after Stripe created the PaymentIntent but before the ID was saved locally.
+  const { db, orders, processor, newOrder } = setup();
+  const order = newOrder('embedded');
+  assert.equal(order.stripePaymentIntentId, null);
+
+  assert.equal(processor.process(paymentIntentSucceeded({ orderId: order.id, paymentIntentId: 'pi_test_lost' })), 'applied');
+  assert.equal(orders.get(order.id)?.stripePaymentIntentId, 'pi_test_lost');
+
+  // A refund event carries no order metadata; it can only be matched through the recovered PaymentIntent ID.
+  assert.equal(processor.process(chargeRefunded({ paymentIntentId: 'pi_test_lost' })), 'applied');
+  assert.equal(orders.get(order.id)?.status, 'refunded');
+  db.close();
+});
+
+test('never links a PaymentIntent ID that another order already owns', () => {
+  const { db, orders, processor, newOrder } = setup();
+  const owner = newOrder('embedded');
+  orders.attachPaymentIntent(owner.id, 'pi_test_taken');
+  const other = newOrder('embedded');
+
+  assert.equal(processor.process(paymentIntentSucceeded({ orderId: other.id, paymentIntentId: 'pi_test_taken' })), 'applied');
+  assert.equal(orders.get(other.id)?.stripePaymentIntentId, null);
+  assert.equal(orders.get(owner.id)?.stripePaymentIntentId, 'pi_test_taken');
   db.close();
 });

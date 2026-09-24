@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type Stripe from 'stripe';
-import { HANDLED_TYPES, canTransition, eventTarget } from './transitions.ts';
+import { HANDLED_TYPES, applyPaymentEvent } from './transitions.ts';
 import type { EventLog, Logger, Order, OrdersRepo, Outcome, WebhookProcessor } from './types.ts';
 
 type StripeObjectRef = {
@@ -45,25 +45,28 @@ export function createWebhookProcessor({ db, orders, eventLog, logger }: {
     }
   }
 
+  // Creating a Stripe object and saving its ID locally can't be one atomic step. If the server failed in
+  // between, metadata still finds the order; this fills in the missing PaymentIntent ID so refunds work.
+  // Checkout orders also get theirs here, since Checkout creates the PaymentIntent itself.
+  function linkPaymentIntent(order: Order, event: Stripe.Event): void {
+    if (order.stripePaymentIntentId) return;
+    const object = event.data.object as StripeObjectRef;
+    const piId = object.object === 'payment_intent' ? object.id : paymentIntentId(object.payment_intent);
+    // Never steal an ID another order already owns: the UNIQUE constraint would fail the whole event.
+    if (piId && !orders.findByPaymentIntent(piId)) orders.attachPaymentIntent(order.id, piId);
+  }
+
   function decide(event: Stripe.Event, order: Order | null): { outcome: Outcome; detail: string | null } {
     if (eventLog.isProcessed(event.id)) return { outcome: 'ignored_duplicate', detail: null };
     if (!handledTypes.includes(event.type)) return { outcome: 'ignored_unhandled_type', detail: null };
     if (!order) return { outcome: 'ignored_unknown_order', detail: null };
 
-    if (event.type === 'checkout.session.completed') {
-      const piId = paymentIntentId(event.data.object.payment_intent);
-      if (piId && !order.stripePaymentIntentId) orders.attachPaymentIntent(order.id, piId);
-    }
+    linkPaymentIntent(order, event);
 
-    const from = order.status;
-    const target = eventTarget(event);
-    if (target === null) return { outcome: 'ignored_transition', detail: 'no status change requested' };
-    if (target === from) return { outcome: 'ignored_transition', detail: `already ${from}` };
-    if (canTransition(from, target)) {
-      orders.setStatus(order.id, target);
-      return { outcome: 'applied', detail: `${from} → ${target}` };
-    }
-    return { outcome: 'ignored_transition', detail: `${from} → ${target} not allowed` };
+    const result = applyPaymentEvent(order.status, event);
+    if (result.kind === 'ignore') return { outcome: 'ignored_transition', detail: result.detail };
+    orders.setStatus(order.id, result.to);
+    return { outcome: 'applied', detail: result.detail };
   }
 
   return {
