@@ -325,3 +325,43 @@ test('POST /api/payment-intents rejects out-of-range or malformed donations with
   assert.equal(orderCount(), ordersBefore);
   assert.equal(gateway.calls.length, callsBefore);
 });
+
+function pendingCheckoutOrder() {
+  const order = orders.create({ productId: 'duck', amountCents: 500, method: 'checkout' });
+  orders.attachCheckoutSession(order.id, `cs_test_cancel_${order.id}`);
+  return order;
+}
+
+test('POST /api/orders/:id/cancel expires a pending Checkout session and leaves the status to the webhook', async () => {
+  const order = pendingCheckoutOrder();
+  const callsBefore = gateway.calls.length;
+
+  const { status, body } = await request<{ requested: boolean }>('POST', `/api/orders/${order.id}/cancel`);
+  assert.equal(status, 202);
+  assert.deepEqual(body, { requested: true });
+
+  const calls = gateway.calls.slice(callsBefore);
+  assert.deepEqual(calls, [{ method: 'expireCheckoutSession', args: `cs_test_cancel_${order.id}` }]);
+  assert.equal(orders.get(order.id)?.status, 'pending');
+});
+
+test('POST /api/orders/:id/cancel returns 409 unless the order is a pending Checkout order', async () => {
+  const paid = pendingCheckoutOrder();
+  orders.setStatus(paid.id, 'paid');
+  const embedded = orders.create({ productId: 'duck', amountCents: 500, method: 'embedded' });
+  const callsBefore = gateway.calls.length;
+
+  for (const id of [paid.id, embedded.id]) {
+    const { status } = await request<ErrorBody>('POST', `/api/orders/${id}/cancel`);
+    assert.equal(status, 409, id);
+  }
+  assert.equal(gateway.calls.length, callsBefore);
+});
+
+test('POST /api/orders/:id/cancel returns 404 for an unknown order and 502 when Stripe fails', async () => {
+  assert.equal((await request<ErrorBody>('POST', '/api/orders/ord_nope/cancel')).status, 404);
+
+  const order = pendingCheckoutOrder();
+  gateway.failNext('expireCheckoutSession');
+  assert.equal((await request<ErrorBody>('POST', `/api/orders/${order.id}/cancel`)).status, 502);
+});

@@ -33,18 +33,9 @@ export function createCheckoutRouter({ config, orders, gateway, logger, publicDi
     res.redirect(303, session.url);
   });
 
-  router.get('/cancel', async (req, res) => {
-    const orderId = req.query.order_id;
-    // A repeated query key arrives as an array, which the repo can't bind.
-    const order = typeof orderId === 'string' ? orders.get(orderId) : undefined;
-    if (order?.status === 'pending' && order.stripeCheckoutSessionId) {
-      try {
-        await gateway.expireCheckoutSession(order.stripeCheckoutSessionId);
-      } catch (err) {
-        // The visitor must still see the cancel page; the session will expire on its own.
-        logger.warn(`Could not expire Checkout Session for order ${order.id}: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
+  // Only renders the page. Expiring the session changes state, so the page's script POSTs
+  // api/orders/:id/cancel instead: prefetchers and crawlers issue GETs but don't run scripts.
+  router.get('/cancel', (req, res) => {
     res.sendFile('cancel.html', { root: publicDir });
   });
 

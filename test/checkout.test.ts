@@ -129,24 +129,10 @@ test('POST /checkout gives 502 when the gateway fails', async (t) => {
   assert.equal(typeof body.error.message, 'string');
 });
 
-test('GET /cancel on a pending order expires its session once and serves the page', async (t) => {
+test('GET /cancel only serves the page and never calls Stripe, even for a pending order', async (t) => {
   const { onlyOrderId, postCheckout, getCancel, callsTo } = await setup(t);
   await postCheckout({ productId: 'duck' });
   const id = onlyOrderId();
-
-  const res = await getCancel(`?order_id=${id}`);
-  assert.equal(res.status, 200);
-  assert.equal(await res.text(), CANCEL_STUB);
-  assert.deepEqual(callsTo('expireCheckoutSession'), [
-    { method: 'expireCheckoutSession', args: 'cs_test_fake_1' },
-  ]);
-});
-
-test('GET /cancel does not expire a paid order, an unknown order or a missing order_id', async (t) => {
-  const { orders, onlyOrderId, postCheckout, getCancel, callsTo } = await setup(t);
-  await postCheckout({ productId: 'duck' });
-  const id = onlyOrderId();
-  orders.setStatus(id, 'paid');
 
   for (const query of [`?order_id=${id}`, '?order_id=ord_does_not_exist', '']) {
     const res = await getCancel(query);
@@ -154,18 +140,6 @@ test('GET /cancel does not expire a paid order, an unknown order or a missing or
     assert.equal(await res.text(), CANCEL_STUB);
   }
   assert.equal(callsTo('expireCheckoutSession').length, 0);
-});
-
-test('GET /cancel still serves the page when expiring the session fails', async (t) => {
-  const { onlyOrderId, gateway, postCheckout, getCancel, callsTo } = await setup(t);
-  await postCheckout({ productId: 'duck' });
-  const id = onlyOrderId();
-  gateway.failNext('expireCheckoutSession');
-
-  const res = await getCancel(`?order_id=${id}`);
-  assert.equal(res.status, 200);
-  assert.equal(await res.text(), CANCEL_STUB);
-  assert.equal(callsTo('expireCheckoutSession').length, 1);
 });
 
 test('POST /checkout creates a donation Checkout Session for the chosen amount', async (t) => {

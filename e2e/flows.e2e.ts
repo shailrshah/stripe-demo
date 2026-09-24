@@ -112,8 +112,11 @@ describe('end-to-end against Stripe test mode', { concurrency: false }, () => {
     const order = orders.find((o) => o.method === 'checkout' && o.status === 'pending');
     assert.ok(order, 'checkout order not found');
 
-    const cancel = await e2e.api('GET', `/cancel?order_id=${order.id}`);
-    assert.equal(cancel.status, 200);
+    const page = await e2e.api('GET', `/cancel?order_id=${order.id}`);
+    assert.equal(page.status, 200);
+    // What the cancel page's script does in the browser: loading the page alone changes nothing.
+    const cancel = await e2e.api('POST', `/api/orders/${order.id}/cancel`);
+    assert.equal(cancel.status, 202);
 
     const detail = await waitForStatus(order.id, 'canceled');
     assert.equal(applied(detail, 'checkout.session.expired').length, 1);

@@ -92,6 +92,24 @@ export function createApiRouter({ config, orders, eventLog, gateway, logger }: {
     res.status(202).json({ refundId: refund.id });
   });
 
+  router.post('/orders/:id/cancel', async (req, res) => {
+    const order = orders.get(req.params.id);
+    if (!order) return sendError(res, 404, 'Order not found');
+    if (order.status !== 'pending' || !order.stripeCheckoutSessionId) {
+      return sendError(res, 409, 'Only pending Checkout orders can be canceled');
+    }
+
+    try {
+      await gateway.expireCheckoutSession(order.stripeCheckoutSessionId);
+    } catch (err) {
+      logger.error(`Expiring Checkout Session for order ${order.id} failed: ${err instanceof Error ? err.message : String(err)}`);
+      return sendError(res, 502, 'Could not expire the Checkout Session with Stripe');
+    }
+    // Status stays 'pending' until the checkout.session.expired webhook arrives (R2.4).
+    logger.info(`Checkout Session expiry requested for order ${order.id}`);
+    res.status(202).json({ requested: true });
+  });
+
   router.get('/events', (req, res) => {
     res.json(eventLog.list().map(enrichEvent));
   });

@@ -81,7 +81,7 @@ The **Donate** page takes any amount from $1.00 to $1,000.00, chosen from the $5
 
 Each product has two buttons:
 
-- **Buy with Checkout:** the server creates an order and a Checkout Session, then redirects you to Stripe's hosted payment page. After paying you return to the local success page. If you cancel, you land on the cancel page. The server then expires the session, and the resulting `checkout.session.expired` webhook marks the order `canceled`.
+- **Buy with Checkout:** the server creates an order and a Checkout Session, then redirects you to Stripe's hosted payment page. After paying you return to the local success page. If you cancel, you land on the cancel page. Its script asks the server (`POST api/orders/:id/cancel`) to expire the session, and the resulting `checkout.session.expired` webhook marks the order `canceled`. Loading the page by itself changes nothing, so link prefetchers and crawlers can't cancel orders.
 - **Buy with embedded form:** the Stripe Payment Element is rendered inside our own page (`pay.html`). The server creates a PaymentIntent and sends only its client secret to the browser. A decline shows Stripe's error message inline, and you can retry with another card without reloading. 3D Secure appears as a modal.
 
 In both cases the price comes from the server's catalog; anything the browser sends is ignored. The success page never marks an order paid by itself: it polls the order for up to 30 seconds until a webhook changes its status.
