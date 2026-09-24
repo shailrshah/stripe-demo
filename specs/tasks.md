@@ -1,6 +1,8 @@
 # Tasks: Stripe Demo Shop
 
-These tasks implement [design.md](design.md), which implements [requirements.md](requirements.md). They're arranged so that as much work as possible runs in parallel. Every task owns a separate set of files and builds only against the interfaces fixed in the design. No task waits on another task's implementation unless its tests actually run that code.
+These tasks implement [design.md](design.md), which implements [requirements.md](requirements.md).
+
+> **Note:** this file records how the app was built. Its "design §N" references point to the earlier version of design.md, at commit `54bcd76`. design.md has since been rewritten as an explanation of how the app works, so its section numbers have changed. They're arranged so that as much work as possible runs in parallel. Every task owns a separate set of files and builds only against the interfaces fixed in the design. No task waits on another task's implementation unless its tests actually run that code.
 
 ## Rules for every task
 
