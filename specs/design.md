@@ -423,12 +423,25 @@ import 'dotenv/config'
 config   = loadConfig()                    → on ConfigError: print, exit(1)   (R7.1, R7.2)
 db       = openDb(config.databasePath)                                        (R9.2)
 gateway  = createStripeGateway(config.stripeSecretKey)
-verifier = createWebhookVerifier(config.webhookSecret)
-if (!config.webhookSecret) console.warn(<prominent banner>)                   (R7.3)
+listener = STRIPE_LISTEN !== 'false' ? startStripeListener({ port, logger }) : null   (R8.5)
+secret   = listener?.secret ?? config.webhookSecret
+verifier = createWebhookVerifier(secret)
+if (!secret) console.warn(<prominent banner>)                                  (R7.3)
 app      = createApp({ config, db, gateway, verifier, logger: console })
 app.listen(config.port, '127.0.0.1')                                          (R7.4)
-print: app URL, and "stripe listen --all-snapshot --forward-to 127.0.0.1:<port>/webhook"
+print: app URL, and either "webhooks forwarded by stripe listen (started automatically)"
+       or the manual "stripe listen --all-snapshot --forward-to …" command
+on exit / SIGINT / SIGTERM: listener.stop()
 ```
+
+**`src/stripe-listener.ts`: `startStripeListener({ port, logger, command = 'stripe' }): StripeListener | null`**
+1. Run `stripe listen --print-secret` synchronously. If the CLI is missing (ENOENT), the command fails, or the output isn't a `whsec_…` value, log a warning and return `null`.
+2. Spawn `stripe listen --all-snapshot --forward-to 127.0.0.1:<port>/webhook`.
+3. Log each output line with a `[stripe]` prefix, replacing `whsec_[A-Za-z0-9]+` with `whsec_…`.
+4. If the child exits and `stop()` wasn't called, log a prominent warning.
+5. Return `{ secret, stop() }`. `stop()` kills the child and is safe to call more than once.
+
+`command` exists only so tests can point it at a fake `stripe` executable, which keeps them offline.
 
 ## 13. Testing strategy
 

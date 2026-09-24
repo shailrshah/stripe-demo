@@ -123,6 +123,13 @@ Priority is **Must**, **Should** or **Could**.
   - `4000 0025 0000 3155`: requires 3D Secure
 - R8.3 `npm start` runs the app and `npm test` runs the test suite.
 - R8.4 The README explains how to exercise webhooks without clicking through a purchase: `stripe trigger <event>` and `stripe events resend <evt_id>` (to see duplicate handling). It also explains how to reset the database by deleting its file.
+- R8.5 `npm start` also runs `stripe listen --all-snapshot` in the background, forwarding to this server's `/webhook`, so webhooks work without a second terminal.
+  - The webhook secret comes from the Stripe CLI (`stripe listen --print-secret`) and takes precedence over `STRIPE_WEBHOOK_SECRET`.
+  - The listener's output appears in the server's terminal with a `[stripe]` prefix, and any `whsec_…` value in it is redacted.
+  - The listener stops when the server stops.
+  - If the listener exits while the server is running, the server logs a prominent warning that webhooks will no longer arrive.
+  - If the CLI is missing or not logged in, the server logs a warning and starts without the listener, falling back to `STRIPE_WEBHOOK_SECRET` (R7.3).
+  - `STRIPE_LISTEN=false` turns this off.
 
 ### R9 Persistence (Must)
 **User story:** As a learner, I want orders and events to survive restarts so that the app behaves like a real integration.
