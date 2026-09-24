@@ -34,7 +34,7 @@ if (!config.webhookSecret) {
 const app = createApp({ config, db, gateway, verifier, logger: console });
 
 app.listen(config.port, '127.0.0.1', () => {
-  console.log(`Stripe demo running at http://127.0.0.1:${config.port}`);
-  if (config.baseUrl !== `http://127.0.0.1:${config.port}`) console.log(`Public URL (BASE_URL): ${config.baseUrl}`);
+  console.log(`Stripe demo running at http://127.0.0.1:${config.port}${config.basePath}/`);
+  if (config.baseUrl !== `http://127.0.0.1:${config.port}`) console.log(`Public URL (BASE_URL): ${config.baseUrl}/`);
   console.log(`Forward webhooks with: stripe listen --all-snapshot --forward-to 127.0.0.1:${config.port}/webhook`);
 });

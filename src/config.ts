@@ -57,10 +57,11 @@ function parsePort(value: string | undefined): number {
   return port;
 }
 
-// The public origin that browsers are sent back to from hosted Checkout, e.g. an ngrok URL.
-// The server itself still listens on 127.0.0.1; a tunnel forwards public traffic to it.
-function parseBaseUrl(value: string | undefined, port: number): string {
-  if (value === undefined) return `http://127.0.0.1:${port}`;
+// The public URL browsers are sent back to from hosted Checkout, e.g. an ngrok URL, optionally with a
+// path prefix such as /stripe-demo that the site is then served under (R7.5). The server itself still
+// listens on 127.0.0.1; a tunnel forwards public traffic to it.
+function parseBaseUrl(value: string | undefined, port: number): { baseUrl: string; basePath: string } {
+  if (value === undefined) return { baseUrl: `http://127.0.0.1:${port}`, basePath: '' };
   let url: URL;
   try {
     url = new URL(value);
@@ -70,21 +71,26 @@ function parseBaseUrl(value: string | undefined, port: number): string {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') {
     throw new ConfigError(`BASE_URL must use http or https, got "${value}".`);
   }
-  // The app is served from the root, so a path would produce broken return URLs.
-  if (url.pathname !== '/' || url.search || url.hash) {
-    throw new ConfigError(`BASE_URL must be just an origin such as https://example.ngrok-free.app, got "${value}".`);
+  if (url.search || url.hash) {
+    throw new ConfigError(`BASE_URL must not have a query or fragment, got "${value}".`);
   }
-  return url.origin;
+  const basePath = url.pathname.replace(/\/+$/, '');
+  if (basePath !== '' && !/^(\/[A-Za-z0-9._~-]+)+$/.test(basePath)) {
+    throw new ConfigError(`BASE_URL path must be plain segments such as /stripe-demo, got "${value}".`);
+  }
+  return { baseUrl: url.origin + basePath, basePath };
 }
 
 export function loadConfig(env: Env = process.env): Readonly<Config> {
   const port = parsePort(read(env, 'PORT'));
+  const { baseUrl, basePath } = parseBaseUrl(read(env, 'BASE_URL'), port);
   return Object.freeze({
     stripeSecretKey: requireSecretKey(read(env, 'STRIPE_SECRET_KEY')),
     stripePublishableKey: requirePublishableKey(read(env, 'STRIPE_PUBLISHABLE_KEY')),
     webhookSecret: parseWebhookSecret(read(env, 'STRIPE_WEBHOOK_SECRET')),
     port,
     databasePath: read(env, 'DATABASE_PATH') ?? 'data/stripe-demo.db',
-    baseUrl: parseBaseUrl(read(env, 'BASE_URL'), port),
+    baseUrl,
+    basePath,
   });
 }

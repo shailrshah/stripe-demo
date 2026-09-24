@@ -22,7 +22,7 @@ export interface EventLogRow {
 
 export interface Config {
   stripeSecretKey: string; stripePublishableKey: string; webhookSecret: string | null;
-  port: number; databasePath: string; baseUrl: string;
+  port: number; databasePath: string; baseUrl: string; basePath: string;
 }
 
 export interface Logger {

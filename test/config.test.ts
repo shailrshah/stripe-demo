@@ -34,6 +34,7 @@ test('valid config gets the documented defaults', () => {
     port: 3000,
     databasePath: 'data/stripe-demo.db',
     baseUrl: 'http://127.0.0.1:3000',
+    basePath: '',
   });
 });
 
@@ -124,8 +125,24 @@ test('BASE_URL accepts a public origin and normalizes it', () => {
   assert.equal(load({ BASE_URL: 'HTTPS://Example.COM:8443' }).baseUrl, 'https://example.com:8443');
 });
 
-test('BASE_URL must be an http(s) origin with no path, query or hash', () => {
-  for (const value of ['not a url', 'example.com', 'ftp://example.com', 'https://example.com/shop', 'https://example.com/?a=1', 'https://example.com/#x']) {
-    assertConfigError({ BASE_URL: value }, /BASE_URL/);
+test('BASE_URL may carry a path prefix, which becomes basePath', () => {
+  const cases: Array<[string, string, string]> = [
+    ['https://abc.ngrok-free.dev/stripe-demo', 'https://abc.ngrok-free.dev/stripe-demo', '/stripe-demo'],
+    ['https://abc.ngrok-free.dev/stripe-demo/', 'https://abc.ngrok-free.dev/stripe-demo', '/stripe-demo'],
+    ['https://abc.ngrok-free.dev/a/b-c_d.e~f', 'https://abc.ngrok-free.dev/a/b-c_d.e~f', '/a/b-c_d.e~f'],
+    ['https://abc.ngrok-free.dev/', 'https://abc.ngrok-free.dev', ''],
+  ];
+  for (const [input, baseUrl, basePath] of cases) {
+    const config = load({ BASE_URL: input });
+    assert.equal(config.baseUrl, baseUrl, input);
+    assert.equal(config.basePath, basePath, input);
   }
+});
+
+test('BASE_URL must be http(s) with a plain path and no query or fragment', () => {
+  const bad = [
+    'not a url', 'example.com', 'ftp://example.com', 'https://example.com/?a=1', 'https://example.com/#x',
+    'https://example.com/a%20b', 'https://example.com/a//b',
+  ];
+  for (const value of bad) assertConfigError({ BASE_URL: value }, /BASE_URL/);
 });

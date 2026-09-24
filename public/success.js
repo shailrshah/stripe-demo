@@ -25,7 +25,7 @@ function render(order) {
 async function poll(startedAt) {
   let order;
   try {
-    ({ order } = await fetchJson(`/api/orders/${encodeURIComponent(orderId)}`));
+    ({ order } = await fetchJson(`api/orders/${encodeURIComponent(orderId)}`));
   } catch (err) {
     if (err.status === 404) detailLink.hidden = true;
     message.textContent = err.status === 404
@@ -45,7 +45,7 @@ async function poll(startedAt) {
 }
 
 if (orderId) {
-  detailLink.href = `/order.html?id=${encodeURIComponent(orderId)}`;
+  detailLink.href = `order.html?id=${encodeURIComponent(orderId)}`;
   detailLink.hidden = false;
   poll(Date.now());
 } else {

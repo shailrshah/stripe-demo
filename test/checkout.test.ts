@@ -20,6 +20,7 @@ const CONFIG: Config = {
   port: 0,
   databasePath: ':memory:',
   baseUrl: BASE_URL,
+  basePath: '',
 };
 const CANCEL_STUB = '<!doctype html><title>stub cancel</title>';
 const silentLogger: Logger = { info() {}, warn() {}, error() {} };

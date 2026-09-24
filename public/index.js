@@ -4,7 +4,7 @@ const list = document.getElementById('products');
 const message = document.getElementById('message');
 
 try {
-  const products = await fetchJson('/api/products');
+  const products = await fetchJson('api/products');
   list.replaceChildren(...products.map(productCard));
   message.hidden = true;
 } catch (err) {
@@ -29,7 +29,7 @@ function productCard(product) {
 
   const form = document.createElement('form');
   form.method = 'post';
-  form.action = '/checkout';
+  form.action = 'checkout';
 
   const productId = document.createElement('input');
   productId.type = 'hidden';
@@ -45,7 +45,7 @@ function productCard(product) {
 
   const embedded = document.createElement('a');
   embedded.className = 'btn';
-  embedded.href = `/pay.html?product=${encodeURIComponent(product.id)}`;
+  embedded.href = `pay.html?product=${encodeURIComponent(product.id)}`;
   embedded.textContent = 'Buy with embedded form';
 
   const actions = document.createElement('div');

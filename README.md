@@ -226,6 +226,10 @@ ngrok http 127.0.0.1:3000
 2. Keep `stripe listen` running as usual. Webhooks still reach the server locally, so there's nothing to register in the Stripe Dashboard.
 3. When you're done, stop ngrok and remove `BASE_URL`.
 
+**Serving under a path:** `BASE_URL` can include a path prefix, such as `BASE_URL=https://<your-domain>.ngrok-free.dev/stripe-demo`. The whole site then lives under `/stripe-demo/`, and `/` redirects there. This applies locally too: after a restart, the local address is `http://127.0.0.1:3000/stripe-demo/`.
+
+The webhook endpoint stays at `/webhook`, so the `stripe listen` command doesn't change. Pages use relative links, so they work under any prefix.
+
 **Keep the same URL across restarts:** by default, ngrok gives you a new random URL every time it starts. Every ngrok account, including free ones, can claim one **static domain** under **Domains** in the ngrok dashboard. ngrok chooses the name; choosing your own name needs a paid plan. Start the tunnel on it, and set `BASE_URL` to it once:
 
 ```sh

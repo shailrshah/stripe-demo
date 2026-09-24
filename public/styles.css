@@ -193,6 +193,9 @@ main > h2, section > h2 { margin: 28px 0 8px; }
   border-radius: var(--radius);
 }
 
+/* Hide the empty bordered box while its table is hidden (loading, empty or error states). */
+.table-wrap:has(> table[hidden]) { display: none; }
+
 .table-wrap {
   overflow-x: auto;
   background: var(--surface);

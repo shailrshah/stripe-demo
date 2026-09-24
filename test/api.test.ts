@@ -22,6 +22,7 @@ const CONFIG: Config = {
   port: 0,
   databasePath: ':memory:',
   baseUrl: 'http://127.0.0.1:3000',
+  basePath: '',
 };
 
 type FakeGateway = ReturnType<typeof createFakeGateway>;

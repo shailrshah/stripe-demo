@@ -90,7 +90,7 @@ async function load() {
     return;
   }
   try {
-    const { order, events } = await fetchJson(`/api/orders/${encodeURIComponent(id)}`);
+    const { order, events } = await fetchJson(`api/orders/${encodeURIComponent(id)}`);
     renderOrder(order);
     if (events.length === 0) {
       noEventsEl.hidden = false;

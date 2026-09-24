@@ -20,7 +20,7 @@ amountInput.addEventListener('input', markPreset);
 document.getElementById('embedded').addEventListener('click', () => {
   if (!form.reportValidity()) return;
   const params = new URLSearchParams({ product: 'donation', amount: amountInput.value });
-  location.assign(`/pay.html?${params}`);
+  location.assign(`pay.html?${params}`);
 });
 
 markPreset();

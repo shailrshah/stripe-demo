@@ -26,13 +26,13 @@ async function init() {
 
   let publishableKey, orderId, clientSecret, order;
   try {
-    ({ publishableKey } = await fetchJson('/api/config'));
-    ({ orderId, clientSecret } = await fetchJson('/api/payment-intents', {
+    ({ publishableKey } = await fetchJson('api/config'));
+    ({ orderId, clientSecret } = await fetchJson('api/payment-intents', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(amount === null ? { productId } : { productId, amount }),
     }));
-    ({ order } = await fetchJson(`/api/orders/${encodeURIComponent(orderId)}`));
+    ({ order } = await fetchJson(`api/orders/${encodeURIComponent(orderId)}`));
   } catch (err) {
     if (err.status !== 400) showStatus(`Couldn't start the payment: ${err.message}`);
     else if (productId === 'donation') showStatus(`${err.message}. Go back and choose another amount.`);
@@ -48,7 +48,7 @@ async function init() {
   const paymentElement = elements.create('payment');
   paymentElement.mount('#payment-element');
 
-  const successUrl = new URL(`/success.html?order_id=${encodeURIComponent(orderId)}`, location.origin).href;
+  const successUrl = new URL(`success.html?order_id=${encodeURIComponent(orderId)}`, location.href).href;
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();

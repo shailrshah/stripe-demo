@@ -18,6 +18,8 @@ export interface TestServerOptions {
   webhookSecret?: string | null;
   gateway?: FakeGateway;
   logger?: Logger;
+  /** Sets BASE_URL, e.g. to serve the site under a path prefix. */
+  baseUrl?: string;
 }
 
 export interface PostWebhookOptions {
@@ -50,12 +52,14 @@ export async function startTestServer({
   webhookSecret = 'whsec_test_secret',
   gateway = createFakeGateway(),
   logger = silentLogger,
+  baseUrl,
 }: TestServerOptions = {}): Promise<TestServer> {
   const config: Config = loadConfig({
     STRIPE_SECRET_KEY: 'sk_test_fake_key',
     STRIPE_PUBLISHABLE_KEY: 'pk_test_fake_key',
     STRIPE_WEBHOOK_SECRET: webhookSecret ?? '',
     DATABASE_PATH: databasePath,
+    BASE_URL: baseUrl,
   });
   const db = openDb(databasePath);
   const app = createApp({ config, db, gateway, verifier: createWebhookVerifier(config.webhookSecret), logger });

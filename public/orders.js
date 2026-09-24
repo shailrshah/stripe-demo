@@ -56,7 +56,7 @@ function fillRow(tr, order) {
   if (order.status === 'paid') actions.append(' ', refundButton(order, tr));
 
   tr.replaceChildren(
-    cell(link(`/order.html?id=${encodeURIComponent(order.id)}`, order.id)),
+    cell(link(`order.html?id=${encodeURIComponent(order.id)}`, order.id)),
     cell(order.productName ?? order.productId),
     cell(order.price),
     cell(METHOD_LABELS[order.method] ?? order.method),
@@ -91,7 +91,7 @@ async function refund(order, tr, button) {
   button.disabled = true;
   showRowMessage(tr, 'Requesting refund…', false);
   try {
-    await fetchJson(`/api/orders/${encodeURIComponent(order.id)}/refund`, { method: 'POST' });
+    await fetchJson(`api/orders/${encodeURIComponent(order.id)}/refund`, { method: 'POST' });
   } catch (err) {
     button.disabled = false;
     showRowMessage(tr, `Refund failed: ${err.message}`, true);
@@ -103,7 +103,7 @@ async function refund(order, tr, button) {
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     try {
-      const { order: latest } = await fetchJson(`/api/orders/${encodeURIComponent(order.id)}`);
+      const { order: latest } = await fetchJson(`api/orders/${encodeURIComponent(order.id)}`);
       if (latest.status !== order.status) {
         // The detail endpoint may not carry the list-only fields, so keep the ones we already have.
         fillRow(tr, { ...order, ...latest });
@@ -119,7 +119,7 @@ async function refund(order, tr, button) {
 
 async function load() {
   try {
-    const orders = await fetchJson('/api/orders');
+    const orders = await fetchJson('api/orders');
     if (orders.length === 0) {
       emptyEl.hidden = false;
       return;

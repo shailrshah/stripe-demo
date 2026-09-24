@@ -38,7 +38,7 @@ function renderRow(event) {
   tr.append(
     cell(formatTime(event.receivedAt)),
     cell(event.type),
-    cell(event.orderId ? link(`/order.html?id=${encodeURIComponent(event.orderId)}`, event.orderId) : null),
+    cell(event.orderId ? link(`order.html?id=${encodeURIComponent(event.orderId)}`, event.orderId) : null),
     cell(outcomeBadge(event.outcome)),
     cell(event.detail),
     cell(link(event.dashboardUrl, event.stripeEventId, true)),
@@ -50,7 +50,7 @@ async function load() {
   refreshButton.disabled = true;
   errorEl.hidden = true;
   try {
-    const events = await fetchJson('/api/events');
+    const events = await fetchJson('api/events');
     tbody.replaceChildren(...events.map(renderRow));
     table.hidden = events.length === 0;
     emptyEl.hidden = events.length !== 0;

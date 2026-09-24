@@ -30,11 +30,26 @@ export function createApp({ config, db, gateway, verifier, logger }: {
   const app = express();
   // Mounted before the body parsers: signature verification needs the untouched raw body.
   app.use(createWebhookRouter({ verifier, processor, logger }));
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: false }));
-  app.use(createCheckoutRouter({ config, orders, gateway, logger, publicDir }));
-  app.use('/api', createApiRouter({ config, orders, eventLog, gateway, logger }));
-  app.use(express.static(publicDir));
+
+  const site = express.Router();
+  site.use(express.json());
+  site.use(express.urlencoded({ extended: false }));
+  site.use(createCheckoutRouter({ config, orders, gateway, logger, publicDir }));
+  site.use('/api', createApiRouter({ config, orders, eventLog, gateway, logger }));
+  site.use(express.static(publicDir, { redirect: false }));
+
+  const { basePath } = config;
+  if (basePath) {
+    // Pages use relative URLs, which only resolve inside the prefix when the page URL ends in a slash.
+    app.use((req, res, next) => {
+      if (req.path !== '/' && req.path !== basePath) return next();
+      const query = req.originalUrl.slice(req.path.length);
+      res.redirect(302, `${basePath}/${query}`);
+    });
+    app.use(basePath, site);
+  } else {
+    app.use(site);
+  }
 
   app.use((req, res) => {
     res.status(404).json({ error: { message: 'Not found' } });
