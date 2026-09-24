@@ -42,23 +42,22 @@ Stack: Node 24, Express, SQLite through the built-in `node:sqlite` module, and p
 
    `PORT` (default `3000`) and `DATABASE_PATH` (default `data/stripe-demo.db`) are optional.
 
-3. In a second terminal, forward webhooks to the app:
-
-   ```sh
-   stripe listen --all-snapshot --forward-to 127.0.0.1:3000/webhook
-   ```
-
-   It prints a signing secret (`whsec_…`). Paste it into `.env` as `STRIPE_WEBHOOK_SECRET`. Keep this terminal running while you use the app.
-
-4. Start the app and open <http://127.0.0.1:3000>:
+3. Start the app and open <http://127.0.0.1:3000>:
 
    ```sh
    npm start
    ```
 
+   `npm start` also starts `stripe listen --all-snapshot` in the background and uses its signing secret, so webhooks work with no second terminal and no secret to copy.
+   - The listener's output appears in the same terminal, prefixed with `[stripe]`, with the secret redacted.
+   - Ctrl-C stops both the server and the listener.
+   - If the listener ever dies, the server prints a warning straight away, because orders stay `pending` without it.
+
+   **To run the listener yourself instead,** set `STRIPE_LISTEN=false`. Then run `stripe listen --all-snapshot --forward-to 127.0.0.1:3000/webhook` in a second terminal, and paste the `whsec_…` it prints into `.env` as `STRIPE_WEBHOOK_SECRET`.
+
 **Why `127.0.0.1` and not `localhost`?** The server binds to IPv4 `127.0.0.1` only. On macOS, `localhost` can resolve to the IPv6 address `::1`, where nothing is listening, so requests to `localhost` may fail. Use `127.0.0.1` in the browser and in the `stripe listen` target. If you change `PORT`, change the port in the forward target too.
 
-If `STRIPE_WEBHOOK_SECRET` is missing, the server still starts, but it prints a warning banner and rejects every webhook with `503` until you set it and restart.
+If the listener can't start (the Stripe CLI is missing or not logged in) and `STRIPE_WEBHOOK_SECRET` isn't set, the server still starts. It prints a warning banner and rejects every webhook with `503` until one of them is fixed.
 
 ## Test cards
 
@@ -223,7 +222,7 @@ ngrok http 127.0.0.1:3000
 1. Copy the `https://…ngrok-free.app` URL that ngrok prints into `.env` as `BASE_URL=https://…ngrok-free.app`, then restart `npm start`.
    - Hosted Checkout needs this setting. Without it, visitors who pay are sent back to `127.0.0.1` on *their own* computer, which fails.
    - The embedded form works either way.
-2. Keep `stripe listen` running as usual. Webhooks still reach the server locally, so there's nothing to register in the Stripe Dashboard.
+2. Webhooks still reach the server locally, through the `stripe listen` that `npm start` runs, so there's nothing to register in the Stripe Dashboard.
 3. When you're done, stop ngrok and remove `BASE_URL`.
 
 **Serving under a path:** `BASE_URL` can include a path prefix, such as `BASE_URL=https://<your-domain>.ngrok-free.dev/stripe-demo`. The whole site then lives under `/stripe-demo/`, and `/` redirects there. This applies locally too: after a restart, the local address is `http://127.0.0.1:3000/stripe-demo/`.
