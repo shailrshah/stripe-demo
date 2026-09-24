@@ -18,27 +18,25 @@ A tiny shop that runs on your laptop against Stripe **test mode**. Visitors buy 
    - Card details go straight from the visitor to Stripe, through Stripe's hosted page or Stripe's iframe (C3).
 3. **Everything runs locally, and connections go outward.** The server listens only on `127.0.0.1`. Stripe events arrive through `stripe listen`, and visitors can arrive through an optional ngrok tunnel. Both open *outbound* connections from the laptop, so nothing on the machine accepts connections from the internet (C1).
 
-### The pieces
+### The core loop
+
+The whole app is built around one loop: a payment starts in the browser, happens at Stripe, and comes back as a verified event that the order's state machine either applies or ignores.
 
 ```
-                         ┌──────────────── your laptop ─────────────────┐
- Visitor's browser       │                                              │
-   │  pages, API calls   │   ┌───────────────┐       ┌──────────────┐   │
-   ├─────────────────────┼──▶│ ngrok agent   │──────▶│              │   │
-   │  (via ngrok, when   │   │ (optional)    │       │  Express app │   │
-   │   shared)           │   └───────────────┘       │  127.0.0.1   │   │
-   │                     │   ┌───────────────┐       │  :3000       │   │
-   │                     │   │ stripe listen │──────▶│  /webhook    │   │
-   │                     │   │ (started by   │       │              │   │
-   │                     │   │  npm start)   │       │  SQLite file │   │
-   │                     │   └───────▲───────┘       └──────┬───────┘   │
-   │                     └───────────┼──────────────────────┼───────────┘
-   │ card details                    │ events               │ API calls (secret key)
-   ▼                                 │                      ▼
- ┌──────────────────────────────────────────────────────────────────────┐
- │ Stripe (test mode): hosted Checkout, Stripe.js iframe, api.stripe.com│
- └──────────────────────────────────────────────────────────────────────┘
+ Browser ──── starts a payment ────▶ Express app ──── creates it (secret key) ────▶ Stripe
+    ▲                                    │                                          │
+    │ shows status                       │ order saved as "pending"                 │ card entered on Stripe's page
+    │ (polls the order)                  ▼                                          │ or in Stripe's iframe
+    │                                 SQLite ◀──────────┐                           │
+    │                                                   │ one transaction           │ signed event
+    └──────────────── Express app ◀── state machine ◀── verifier ◀── POST /webhook ◀┘
+                                     (current status + event
+                                      → next status, or ignored)
 ```
+
+**Stripe owns the payment. The app owns order state. Signed webhooks are the only bridge from one to the other.** §2 follows the loop through each payment flow, §3 describes the state machine, and §4 covers the webhook side.
+
+### The pieces
 
 | Piece | Role |
 |---|---|
@@ -46,8 +44,8 @@ A tiny shop that runs on your laptop against Stripe **test mode**. Visitors buy 
 | **Express app** (`src/`) | Owns prices, orders and the event log. Talks to Stripe with the secret key. Receives webhooks |
 | **SQLite** (`data/stripe-demo.db`) | Stores orders, the event log, and the IDs of events already processed. Survives restarts |
 | **Stripe** | Takes card details, moves the (test) money, and emits events |
-| **`stripe listen`** | Carries events from Stripe to `127.0.0.1:3000/webhook`. `npm start` runs it automatically |
-| **ngrok** (optional) | Gives the site a public HTTPS URL for sharing, by forwarding to `127.0.0.1:3000` |
+| **`stripe listen`** | Carries events from Stripe to `127.0.0.1:3000/webhook`. `npm start` runs it automatically (§10) |
+| **ngrok** (optional) | Gives the site a public HTTPS URL for sharing, by forwarding to `127.0.0.1:3000` (§10) |
 
 ### Technology choices
 
@@ -55,7 +53,7 @@ A tiny shop that runs on your laptop against Stripe **test mode**. Visitors buy 
 |---|---|
 | Node 24, TypeScript run directly (type stripping), ESM | Types with no build or transpile step. `tsc` only type-checks (§12) |
 | Express 5 | Small and familiar, and its async errors reach the error handler |
-| `node:sqlite` (built in, synchronous) | No extra dependency. Synchronous calls mean a webhook transaction can't interleave with another request (§4) |
+| `node:sqlite` (built in) | No extra dependency. Each webhook is processed in one SQLite transaction, which is what keeps it correct (§4) |
 | `stripe` npm package, used in exactly one module | All Stripe API calls go through `stripe-gateway.ts`, which tests swap for a fake (§5) |
 | Plain HTML and JS pages, no framework | Nothing to build, and every line is readable when you're learning |
 | Built-in `node:test` | No test dependencies. Runtime dependencies are just `express`, `stripe` and `dotenv` (N3) |
@@ -106,7 +104,9 @@ A donation uses the same two flows. The only difference is where the amount come
 
 ### 2.4 Cancelling hosted Checkout
 
-Stripe's "back" link goes to `cancel?order_id=…`. The server asks Stripe to **expire** the session. Stripe then sends `checkout.session.expired`, and the webhook moves the order to `canceled`. So even a cancellation takes effect through a webhook.
+Stripe's "back" link goes to `cancel?order_id=…`. Loading that page changes nothing on its own. The page's script then sends `POST api/orders/:id/cancel`, and the server asks Stripe to **expire** the session. Stripe sends `checkout.session.expired`, and the webhook moves the order to `canceled`. So even a cancellation takes effect through a webhook.
+
+The state change is a POST from the page rather than a side effect of `GET /cancel`, because link prefetchers, crawlers and browser extensions fetch URLs freely but don't run page scripts.
 
 ### 2.5 Refunding
 
@@ -114,7 +114,7 @@ The Refund button on the Orders page calls `POST api/orders/:id/refund`.
 - **Accepted:** for a `paid` order with a PaymentIntent, the server asks Stripe for a full refund and returns `202`. The order stays `paid` until `charge.refunded` arrives and applies `paid → refunded`.
 - **Rejected:** any other order gets `409`, and no call to Stripe.
 
-Refunds work for Checkout orders too. When `checkout.session.completed` arrives, the processor saves the session's PaymentIntent ID on the order (§4).
+Refunds work for Checkout orders too. Checkout creates the PaymentIntent itself, and the first event that mentions it saves its ID on the order (§4).
 
 ### 2.6 When a webhook is missed
 
@@ -170,7 +170,7 @@ Stripe signs each delivery with HMAC-SHA256 over `timestamp + "." + raw body`, u
 
 ### Stage 2: decide, inside one transaction (`webhook-processor.ts`)
 
-Everything below runs between `BEGIN IMMEDIATE` and `COMMIT`. Any error triggers `ROLLBACK` (R4.8). The code is synchronous, so no other request can interleave.
+Everything below runs in **one SQLite transaction** (`BEGIN IMMEDIATE` … `COMMIT`), and any error triggers `ROLLBACK` (R4.8). That transaction is the correctness boundary: the dedupe record, the status change and the log row are all written, or none are. (With `node:sqlite` the calls are also synchronous, so no other request runs in the middle, but correctness doesn't depend on that. `BEGIN IMMEDIATE` takes the write lock up front either way.)
 
 **1. Find the order,** trying each of these until one matches:
 1. `data.object.metadata.order_id`. We set it on every Checkout Session, and on every PaymentIntent, including the ones Checkout creates.
@@ -180,7 +180,9 @@ Everything below runs between `BEGIN IMMEDIATE` and `COMMIT`. Any error triggers
 
 Stripe types `payment_intent` as "an ID, or the expanded object", and the processor accepts both. A metadata `order_id` that doesn't exist falls through to the ID lookups. An event matching nothing is an **unknown order**, such as the fixtures that `stripe trigger` creates.
 
-**2. Choose the outcome.** The first rule that matches wins:
+**2. Link the PaymentIntent.** If the order has no PaymentIntent ID yet, save the one the event carries: the PaymentIntent's own ID, or a session's or charge's `payment_intent`. It's skipped if another order already owns that ID. Checkout orders learn their PaymentIntent this way, and it also repairs an order whose ID was never saved (see "When things fail halfway"). This only happens for handled events that matched an order, so it's done between rules c and d below.
+
+**3. Choose the outcome.** The first rule that matches wins:
 
 | # | Rule | Outcome | Detail |
 |---|---|---|---|
@@ -192,9 +194,9 @@ Stripe types `payment_intent` as "an ID, or the expanded object", and the proces
 | f | The move is allowed (§3) | `applied`: the status is updated | `pending → paid` |
 | g | Otherwise | `ignored_transition` | `paid → failed not allowed` |
 
-Before rules d–g, `checkout.session.completed` saves the session's PaymentIntent ID on the order, if the order has none yet. That's what lets refunds (§2.5) find Checkout orders.
+Rules d–g are the order state machine. They're one pure function, `applyPaymentEvent(currentStatus, event)` in `transitions.ts`, with no database and no Stripe calls. It returns either "apply, moving to X" or "ignore, because Y". The processor only adds what surrounds it: deduplication, finding the order, linking IDs, and writing the result.
 
-**3. Record it:**
+**4. Record it:**
 - Unless it was a duplicate, insert the event ID into `processed_events`.
 - Then append a row to the event log, `webhook_events`. This is deliberately the **last write**, so if logging fails, the whole decision rolls back.
 - After the commit, log one line: `webhook <type> <evt_id>: <outcome> (<detail>)`.
@@ -203,7 +205,21 @@ Before rules d–g, `checkout.session.completed` saves the session's PaymentInte
 
 Return `200` with the outcome. Every verified event gets a 2xx, even one that's ignored, so Stripe never retries an event we deliberately ignored (R4.4).
 
-**API versions:** API calls use the version pinned by the `stripe` library (`2026-08-26.dahlia`). Webhook payloads, however, are rendered in the account's default API version, which `stripe listen` prints when it starts. The processor reads only fields that are stable across versions: `id`, `type`, `object`, `metadata`, `payment_status`, `payment_intent` and `refunded`.
+**API versions:** API calls use the version pinned by the `stripe` library (`2026-08-26.dahlia`). Webhook payloads, however, are rendered in the account's default API version, which `stripe listen` prints when it starts, and which can differ. The processor deliberately depends on a minimal set of fields: `id`, `type`, `object`, `metadata`, `payment_status`, `payment_intent` and `refunded`. Those fields haven't changed across the versions in use, but that's an observation, not a guarantee. The e2e suite (§13) is what checks compatibility against the account's real version, so run it after changing either version.
+
+### When things fail halfway
+
+Payments cross two systems, our database and Stripe, and no operation can commit to both at once. This is how each partial failure is recovered:
+
+| What fails | What happens | Why it's safe |
+|---|---|---|
+| Processing a webhook throws | Rollback, then `500`. The event isn't recorded as processed | A redelivery (Stripe's retries, or `stripe events resend`) is processed from scratch |
+| Stripe rejects creating a session or PaymentIntent | The order row already exists, stays `pending` with no Stripe ID, and the route returns `502` | An order with no Stripe object never receives events, so it never changes. It's visible but harmless |
+| Stripe creates the object, but the server fails before saving its ID | The order has no Stripe ID locally, while Stripe has an object carrying `metadata.order_id` | Every event finds the order by that metadata, and step 2 saves the missing PaymentIntent ID, so the payment is recorded and refunds still work. `webhook-processor.test.ts` simulates exactly this |
+| The listener is down when an event happens | The event never arrives, and the order stays `pending` | `npm start` warns loudly when the listener dies. The fix is `stripe events resend`, which is always safe thanks to deduplication (§2.6) |
+| Events arrive twice, or out of order | Duplicates are caught by ID; disallowed moves are ignored | The event-ID ledger plus the one-way state machine (§3) |
+
+The pattern throughout: **write our order first, put our order ID in Stripe's metadata, and let webhooks reconcile.** Stripe's copy always carries enough to find ours.
 
 ---
 
@@ -227,9 +243,9 @@ server.ts ── startup: config → db → gateway → stripe listen → verifi
 | `catalog.ts` | Products, prices and images; donation parsing; `resolveItem` (§7) |
 | `db.ts` | Opens SQLite (WAL, foreign keys on) and creates the schema if it's missing (§6) |
 | `orders.ts`, `event-log.ts` | Repositories: prepared statements and camelCase rows. They never open transactions; their callers do |
-| `transitions.ts` | Pure functions: which status an event asks for, and whether a move is allowed |
+| `transitions.ts` | The order state machine, as pure functions: `applyPaymentEvent(status, event)`, built from `eventTarget` (which status an event asks for) and `canTransition` (whether a move is allowed) |
 | `webhook-verifier.ts` | Signature verification, with its two error types |
-| `webhook-processor.ts` | The decision logic from §4, in one transaction |
+| `webhook-processor.ts` | Everything around the state machine from §4: dedupe, order lookup, PaymentIntent linking, persistence, in one transaction |
 | `stripe-gateway.ts` | The **only** code that calls Stripe's API: create and expire sessions, create PaymentIntents and refunds |
 | `routes/*.ts` | HTTP handlers. Each is a factory that returns an `express.Router` |
 | `app.ts` | Builds the repositories and processor, mounts the routers, handles 404s and errors |
@@ -268,7 +284,8 @@ Stripe's types mark `session.url` and `client_secret` as nullable. The gateway t
 | `GET api/config` | — | `{ publishableKey }` | |
 | `GET api/products` | — | `[{ id, name, description, amountCents, imageUrl, price }]` | |
 | `POST checkout` | form `productId`, plus `amount` for a donation | `303` to Stripe Checkout | `400` bad product or amount; `502` Stripe failed |
-| `GET cancel?order_id=` | — | the cancel page; expires the session if the order is `pending` | never fails; errors are logged |
+| `GET cancel?order_id=` | — | the cancel page only, with no side effects | |
+| `POST api/orders/:id/cancel` | — | `202 { requested: true }`: Stripe is asked to expire the session, and the status changes when the webhook arrives | `404`; `409` unless a pending Checkout order; `502` |
 | `POST api/payment-intents` | JSON `{ productId, amount? }` | `201 { orderId, clientSecret }` | `400`; `502` |
 | `GET api/orders` | — | every order, newest first, plus `productName`, `price` and `dashboardUrl` | |
 | `GET api/orders/:id` | — | `{ order (enriched as above), events (oldest first, each with dashboardUrl) }` | `404` |
@@ -308,7 +325,7 @@ Static pages served by Express. Each has its own small ES-module script, and the
 | `donate.html` | $5, $10 and $25 presets plus a custom amount (`min=1`, `max=1000`, `step=0.01`). It checks the amount before either button proceeds; the server checks again |
 | `pay.html` | The embedded Payment Element flow from §2.2 |
 | `success.html` | Polls the order every 1 s for up to 30 s while it's `pending`, then suggests checking `stripe listen`. Explains why the redirect alone proves nothing |
-| `cancel.html` | Explains that the order becomes `canceled` once the expiry webhook arrives |
+| `cancel.html` | Sends `POST api/orders/:id/cancel` from its script, then explains that the order becomes `canceled` once the expiry webhook arrives. Stays quiet on a `409`, such as on a reload |
 | `orders.html` | Every order, with status badges and Dashboard links. `paid` rows get a Refund button, which then polls until the webhook updates the row |
 | `order.html` | One order's fields, plus every event that touched it |
 | `events.html` | The whole event log, with outcome badges. Has a Refresh button |
@@ -408,6 +425,16 @@ webhook_events (                                       -- "what happened on each
 
 **Why `127.0.0.1` and not `localhost`:** on macOS, `localhost` can resolve to IPv6 `::1`, where nothing is listening.
 
+### Local networking
+
+Nothing on the laptop accepts connections from the internet. Both inbound paths are tunnels that start *outbound* from the laptop:
+
+```
+ Visitor ──▶ ngrok's servers ══ tunnel ══▶ ngrok agent   ──▶ 127.0.0.1:3000   (the website, optional)
+ Stripe  ──▶ Stripe's servers ═ tunnel ══▶ stripe listen ──▶ 127.0.0.1:3000/webhook   (events)
+ 127.0.0.1:3000 ─────────────────────────────────────────▶ api.stripe.com   (creating payments)
+```
+
 ### Sharing through a tunnel
 
 `ngrok http 127.0.0.1:3000 --url https://<static-domain>` gives the site a public HTTPS URL.
@@ -427,6 +454,7 @@ webhook_events (                                       -- "what happened on each
 | Forged webhooks | Every event is signature-checked against the raw body, with a 5-minute window |
 | Duplicates and out-of-order events | The event-ID ledger plus the one-way state machine |
 | Price tampering | Catalog prices come from the server. Donation amounts are validated on the server |
+| Accidental state changes | Every state-changing route is a POST. `GET` pages, including `cancel`, have no side effects, so prefetchers and crawlers can't change orders |
 | XSS | Pages insert data with `textContent`. There's no Content-Security-Policy header yet (a possible hardening step) |
 | Public exposure | Only through an explicit tunnel. Anyone with the URL can see orders and events and trigger refunds; accepted for a dummy site |
 
@@ -506,7 +534,7 @@ webhook_events (                                       -- "what happened on each
 | Requirement | Where |
 |---|---|
 | R1 Catalog | `catalog.ts`, `GET api/products`, `index.html` |
-| R2 Hosted Checkout | `routes/checkout.ts`, `stripe-gateway.ts`, `success.html`, `cancel.html` |
+| R2 Hosted Checkout | `routes/checkout.ts`, `POST api/orders/:id/cancel`, `stripe-gateway.ts`, `success.html`, `cancel.html`, `cancel.js` |
 | R3 Embedded form | `POST api/payment-intents`, `stripe-gateway.ts`, `pay.html` |
 | R4 Webhooks | `routes/webhook.ts`, `webhook-verifier.ts`, `webhook-processor.ts`, `transitions.ts`, `event-log.ts` |
 | R5 Visibility | `GET api/orders[/:id]`, `GET api/events`, `orders.html`, `order.html`, `events.html` |
